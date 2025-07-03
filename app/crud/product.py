@@ -31,16 +31,26 @@ class CRUDProduct(CRUDBase[Product, ProductCreate, ProductUpdate]):
         )
 
     def get_low_stock_products(
-        self, db: Session, *, shop_id: str, threshold: int = 10
+        self, db: Session, *, shop_id: str, threshold: int = 10, limit: int = None
     ) -> List[Product]:
-        return (
-            db.query(Product)
-            .filter(
-                Product.shop_id == shop_id,
-                Product.stock_quantity <= threshold
+        try:
+            query = (
+                db.query(Product)
+                .filter(
+                    Product.shop_id == shop_id,
+                    Product.stock_quantity <= threshold
+                )
+                .order_by(Product.stock_quantity)
             )
-            .all()
-        )
+            
+            if limit:
+                query = query.limit(limit)
+                
+            return query.all()
+        except Exception as e:
+            print(f"Error in get_low_stock_products: {str(e)}")
+            # Return empty list on error
+            return []
 
     def update_stock(
         self, db: Session, *, product_id: str, quantity_change: int

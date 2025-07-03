@@ -18,6 +18,9 @@ class Product(Base):
     shop_id = Column(String(36), ForeignKey("shops.id"), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    cost_price = Column(Numeric(10, 2), nullable=True)
+    min_stock_level = Column(Integer, default=0)
+    sku = Column(String(100), unique=True, nullable=True)
 
     # Relationships
     shop = relationship("Shop", back_populates="products")

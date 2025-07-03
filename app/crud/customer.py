@@ -52,6 +52,49 @@ class CRUDCustomer(CRUDBase[Customer, CustomerCreate, CustomerUpdate]):
             )
             .all()
         )
+        
+    def get_top_customers(
+        self, db: Session, *, shop_id: str, limit: int = 5
+    ) -> List[Customer]:
+        """
+        Get the top customers for a shop based on their purchase amount
+        Uses a query to join with bills and calculate total purchases
+        """
+        try:
+            from sqlalchemy import func
+            from sqlalchemy.orm import aliased
+            from ..models.bill import Bill
+            
+            # Create a query that sums up the total amount spent by each customer
+            result = (
+                db.query(
+                    Customer,
+                    func.sum(Bill.total_amount).label('total_spent')
+                )
+                .join(Bill, Bill.customer_id == Customer.id)
+                .filter(
+                    Customer.shop_id == shop_id,
+                    Bill.payment_status == 'paid'  # Only count paid bills
+                )
+                .group_by(Customer.id)
+                .order_by(func.sum(Bill.total_amount).desc())
+                .limit(limit)
+                .all()
+            )
+            
+            # Attach the total_spent attribute to each customer object
+            for customer, total_spent in result:
+                setattr(customer, 'total_spent', total_spent or 0.0)
+                
+            # Return just the customer objects with the attached total_spent attribute
+            return [customer for customer, _ in result]
+        except Exception as e:
+            print(f"Error in get_top_customers: {str(e)}")
+            # If there's an error, return the top customers without spending data
+            customers = db.query(Customer).filter(Customer.shop_id == shop_id).limit(limit).all()
+            for customer in customers:
+                setattr(customer, 'total_spent', 0.0)
+            return customers
 
 
 customer = CRUDCustomer(Customer)

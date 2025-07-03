@@ -340,3 +340,13 @@ def test_token(
     Test access token
     """
     return current_user
+
+
+@router.get("/me", response_model=User)
+def get_current_user_info(
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get current user information
+    """
+    return current_user

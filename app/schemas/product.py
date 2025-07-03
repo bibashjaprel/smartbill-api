@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from decimal import Decimal
@@ -12,10 +12,13 @@ class ProductBase(BaseModel):
     stock_quantity: Optional[int] = 0
     unit: Optional[str] = 'piece'
     category: Optional[str] = None
+    cost_price: Optional[Decimal] = None
+    min_stock_level: Optional[int] = 0
+    sku: Optional[str] = None
 
 
 class ProductCreate(ProductBase):
-    shop_id: uuid.UUID
+    shop_id: Optional[uuid.UUID] = None
 
 
 class ProductUpdate(ProductBase):
@@ -34,7 +37,18 @@ class ProductInDBBase(ProductBase):
 
 
 class Product(ProductInDBBase):
-    pass
+    current_stock: Optional[int] = None
+    
+    class Config:
+        orm_mode = True
+        
+    @classmethod
+    def from_orm(cls, obj):
+        # Create the product instance
+        product = super().from_orm(obj)
+        # Set current_stock to the same value as stock_quantity
+        product.current_stock = product.stock_quantity
+        return product
 
 
 class ProductWithStats(ProductInDBBase):

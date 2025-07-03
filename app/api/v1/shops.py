@@ -22,6 +22,24 @@ def read_shops(
     return shops
 
 
+@router.get("/current", response_model=Shop)
+def get_current_shop(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get the current user's default shop (first shop)
+    """
+    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+    if not shops:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No shops found for the current user"
+        )
+    # Return the first shop as the current shop
+    return shops[0]
+
+
 @router.post("/", response_model=Shop)
 def create_shop(
     *,

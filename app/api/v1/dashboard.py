@@ -1,0 +1,112 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import Dict, Any
+from ...core.database import get_db
+from ...crud.shop import shop as crud_shop
+from ...crud.product import product as crud_product
+from ...crud.customer import customer as crud_customer
+from ...crud.bill import bill as crud_bill
+from ...api.deps import get_current_active_user
+from ...models.user import User
+
+router = APIRouter()
+
+
+@router.get("/stats")
+def get_dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    """
+    Get dashboard statistics for the current user's first shop
+    - Total sales (revenue)
+    - Number of customers
+    - Number of products
+    - Recent sales
+    - Low stock products
+    - Top customers
+    """
+    try:
+        # Get the current user's first shop
+        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+        if not shops:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No shops found for the current user"
+            )
+        shop = shops[0]
+        shop_id = str(shop.id)
+        
+        # Get basic stats
+        customers = crud_customer.get_by_shop(db, shop_id=shop_id) or []
+        products = crud_product.get_by_shop(db, shop_id=shop_id) or []
+        
+        # Get revenue stats - total sales and recent bills
+        total_revenue = crud_bill.get_total_revenue(db, shop_id=shop_id) or 0.0
+        recent_bills = crud_bill.get_recent_bills(db, shop_id=shop_id, limit=5) or []
+        
+        # Get low stock products
+        low_stock_products = []
+        try:
+            low_stock_products = crud_product.get_low_stock_products(
+                db, shop_id=shop_id, threshold=10, limit=5
+            ) or []
+        except Exception as e:
+            # Log error but continue with empty list
+            print(f"Error getting low stock products: {str(e)}")
+        
+        # Get top customers by revenue
+        top_customers = []
+        try:
+            top_customers = crud_customer.get_top_customers(db, shop_id=shop_id, limit=5) or []
+        except Exception as e:
+            # Log error but continue with empty list
+            print(f"Error getting top customers: {str(e)}")
+        
+        # Format response with safe handling of data
+        return {
+            "shop": {
+                "id": shop_id,
+                "name": shop.name if hasattr(shop, 'name') else "",
+            },
+            "stats": {
+                "total_revenue": float(total_revenue) if total_revenue else 0.0,
+                "customer_count": len(customers),
+                "product_count": len(products),
+            },
+            "recent_bills": [
+                {
+                    "id": str(bill.id),
+                    "customer_name": bill.customer.name if bill.customer and hasattr(bill.customer, 'name') else "Walk-in Customer",
+                    "total_amount": float(bill.total_amount) if hasattr(bill, 'total_amount') else 0.0,
+                    "created_at": bill.created_at.isoformat() if hasattr(bill, 'created_at') else "",
+                    "payment_status": bill.payment_status if hasattr(bill, 'payment_status') else "unknown"
+                }
+                for bill in recent_bills if bill
+            ],
+            "low_stock_products": [
+                {
+                    "id": str(product.id),
+                    "name": product.name if hasattr(product, 'name') else "",
+                    "quantity": product.stock_quantity if hasattr(product, 'stock_quantity') else 0,
+                    "price": float(product.price) if hasattr(product, 'price') else 0.0
+                }
+                for product in low_stock_products if product
+            ],
+            "top_customers": [
+                {
+                    "id": str(customer.id),
+                    "name": customer.name if hasattr(customer, 'name') else "",
+                    "total_spent": float(customer.total_spent) if hasattr(customer, 'total_spent') else 0.0,
+                    "phone": customer.phone if hasattr(customer, 'phone') else ""
+                }
+                for customer in top_customers if customer
+            ]
+        }
+    except Exception as e:
+        # Global exception handler to prevent 500 errors without CORS headers
+        print(f"Dashboard stats error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching dashboard stats: {str(e)}"
+        )

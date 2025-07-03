@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.crud.user import user as crud_user
 from app.schemas.user import UserCreate
 from app.core.security import get_password_hash
+from uuid import uuid4
 
 client = TestClient(app)
 
@@ -27,18 +28,24 @@ VENDOR_USER = {
 
 def setup_test_users(db: Session):
     """Create test admin and vendor users"""
+    unique_suffix = str(uuid4())[:8]
+
     # Create admin user
-    admin_user = crud_user.create(db, obj_in=UserCreate(**ADMIN_USER))
+    admin_user_data = ADMIN_USER.copy()
+    admin_user_data["email"] = f"admin_{unique_suffix}@billsmart.com"
+    admin_user = crud_user.create(db, obj_in=UserCreate(**admin_user_data))
     admin_user.is_verified = True
     admin_user.is_admin = True
     db.add(admin_user)
-    
-    # Create vendor user  
-    vendor_user = crud_user.create(db, obj_in=UserCreate(**VENDOR_USER))
+
+    # Create vendor user
+    vendor_user_data = VENDOR_USER.copy()
+    vendor_user_data["email"] = f"vendor_{unique_suffix}@billsmart.com"
+    vendor_user = crud_user.create(db, obj_in=UserCreate(**vendor_user_data))
     vendor_user.is_verified = True
     vendor_user.is_admin = False
     db.add(vendor_user)
-    
+
     db.commit()
     return admin_user, vendor_user
 
@@ -114,12 +121,14 @@ def test_admin_cannot_reset_admin_password():
     # Setup test users
     admin_user, vendor_user = setup_test_users(db)
     
-    # Create another admin
+    # Create another admin with unique email
     admin2_data = {
         "email": "admin2@billsmart.com",
         "password": "admin2password123", 
         "full_name": "Admin 2"
     }
+    unique_suffix = str(uuid4())[:8]
+    admin2_data["email"] = f"admin2_{unique_suffix}@billsmart.com"
     admin2 = crud_user.create(db, obj_in=UserCreate(**admin2_data))
     admin2.is_verified = True
     admin2.is_admin = True

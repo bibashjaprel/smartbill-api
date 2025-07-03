@@ -54,6 +54,37 @@ class CRUDBill(CRUDBase[Bill, BillCreate, BillUpdate]):
             )
             .all()
         )
+        
+    def get_total_revenue(self, db: Session, *, shop_id: str) -> Decimal:
+        """
+        Calculate the total revenue for a shop by summing all paid bills
+        """
+        try:
+            from sqlalchemy import func
+            result = db.query(func.sum(Bill.total_amount)).filter(
+                Bill.shop_id == shop_id,
+                Bill.payment_status == 'paid'
+            ).scalar()
+            return result or Decimal('0.0')
+        except Exception as e:
+            print(f"Error in get_total_revenue: {str(e)}")
+            return Decimal('0.0')
+    
+    def get_recent_bills(self, db: Session, *, shop_id: str, limit: int = 5) -> List[Bill]:
+        """
+        Get the most recent bills for a shop
+        """
+        try:
+            return (
+                db.query(Bill)
+                .filter(Bill.shop_id == shop_id)
+                .order_by(Bill.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+        except Exception as e:
+            print(f"Error in get_recent_bills: {str(e)}")
+            return []
 
 
 class CRUDUdharoTransaction(CRUDBase[UdharoTransaction, UdharoTransactionCreate, None]):
