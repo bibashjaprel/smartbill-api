@@ -33,14 +33,14 @@ class ProductInDBBase(ProductBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Product(ProductInDBBase):
     current_stock: Optional[int] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
         
     @classmethod
     def from_orm(cls, obj):

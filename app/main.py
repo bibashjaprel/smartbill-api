@@ -6,7 +6,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 import traceback
 from .core.config import settings
-from .api.v1 import auth, users, shops, customers, products, bills, admin, dashboard, udharo
+from .api.v1 import auth, users, shops, customers, products, bills, admin, dashboard, udharo, reports
 
 
 # Custom middleware to ensure CORS headers are added to error responses
@@ -69,6 +69,7 @@ app.include_router(products.router, prefix=f"{settings.API_V1_STR}", tags=["prod
 app.include_router(bills.router, prefix=f"{settings.API_V1_STR}", tags=["bills"])
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"])
 app.include_router(udharo.router, prefix=f"{settings.API_V1_STR}/udharo", tags=["udharo"])
+app.include_router(reports.router, prefix=f"{settings.API_V1_STR}/reports", tags=["reports"])
 
 
 @app.get("/")

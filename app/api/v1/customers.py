@@ -80,6 +80,33 @@ def create_customer(
     return customer
 
 
+@router.post("/customers/", response_model=Customer)
+def create_customer_current_shop(
+    *,
+    db: Session = Depends(get_db),
+    customer_in: CustomerCreate,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Create new customer for current shop (first shop of the user)
+    """
+    # Get the current user's first shop
+    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+    if not shops:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No shops found for the current user"
+        )
+    shop = shops[0]
+    
+    # Set the shop_id for the customer
+    customer_in.shop_id = shop.id
+    
+    # Create the customer
+    customer = crud_customer.create(db, obj_in=customer_in)
+    return customer
+
+
 @router.get("/{shop_id}/customers/{customer_id}", response_model=Customer)
 def read_customer(
     *,
@@ -134,6 +161,120 @@ def delete_customer(
     """
     Delete a customer
     """
+    customer = crud_customer.get_by_shop_and_id(
+        db, shop_id=str(shop.id), customer_id=customer_id
+    )
+    if not customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found"
+        )
+    crud_customer.remove(db, id=customer_id)
+    return {"message": "Customer deleted successfully"}
+
+
+@router.get("/customers/{customer_id}", response_model=Customer)
+def read_customer_current_shop(
+    *,
+    db: Session = Depends(get_db),
+    customer_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get customer by ID for current shop
+    """
+    # Validate customer_id parameter
+    if not customer_id or customer_id.lower() in ['undefined', 'null', 'none']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid customer ID provided. Customer ID cannot be undefined, null, or empty."
+        )
+    
+    # Get the current user's first shop
+    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+    if not shops:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No shops found for the current user"
+        )
+    shop = shops[0]
+    
+    customer = crud_customer.get_by_shop_and_id(
+        db, shop_id=str(shop.id), customer_id=customer_id
+    )
+    if not customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found"
+        )
+    return customer
+
+
+@router.put("/customers/{customer_id}", response_model=Customer)
+def update_customer_current_shop(
+    *,
+    db: Session = Depends(get_db),
+    customer_id: str,
+    customer_in: CustomerUpdate,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Update a customer for current shop
+    """
+    # Validate customer_id parameter
+    if not customer_id or customer_id.lower() in ['undefined', 'null', 'none']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid customer ID provided. Customer ID cannot be undefined, null, or empty."
+        )
+    
+    # Get the current user's first shop
+    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+    if not shops:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No shops found for the current user"
+        )
+    shop = shops[0]
+    
+    customer = crud_customer.get_by_shop_and_id(
+        db, shop_id=str(shop.id), customer_id=customer_id
+    )
+    if not customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found"
+        )
+    customer = crud_customer.update(db, db_obj=customer, obj_in=customer_in)
+    return customer
+
+
+@router.delete("/customers/{customer_id}")
+def delete_customer_current_shop(
+    *,
+    db: Session = Depends(get_db),
+    customer_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Delete a customer for current shop
+    """
+    # Validate customer_id parameter
+    if not customer_id or customer_id.lower() in ['undefined', 'null', 'none']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid customer ID provided. Customer ID cannot be undefined, null, or empty."
+        )
+    
+    # Get the current user's first shop
+    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+    if not shops:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No shops found for the current user"
+        )
+    shop = shops[0]
+    
     customer = crud_customer.get_by_shop_and_id(
         db, shop_id=str(shop.id), customer_id=customer_id
     )

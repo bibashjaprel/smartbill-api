@@ -15,6 +15,119 @@ import calendar
 router = APIRouter()
 
 
+# Utility functions
+def _get_shop_or_404(db: Session, current_user: User):
+    """Get the current user's first shop or raise 404"""
+    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+    if not shops:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No shops found for the current user"
+        )
+    return shops[0]
+
+
+def _get_monthly_stats_data(month: str, db: Session, current_user: User) -> Dict[str, Any]:
+    """Get monthly statistics data"""
+    shop = _get_shop_or_404(db, current_user)
+    
+    try:
+        # Parse month
+        year, month_num = month.split("-")
+        year = int(year)
+        month_num = int(month_num)
+        
+        # Get days in month
+        days_in_month = calendar.monthrange(year, month_num)[1]
+        start_date = datetime(year, month_num, 1)
+        end_date = datetime(year, month_num, days_in_month, 23, 59, 59)
+        
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid month format. Use YYYY-MM"
+        )
+    
+    # Get bills for the month
+    bills = db.query(Bill).filter(
+        and_(
+            Bill.shop_id == shop.id,
+            Bill.created_at >= start_date,
+            Bill.created_at <= end_date
+        )
+    ).all()
+    
+    total_revenue = sum(float(bill.total_amount) for bill in bills)
+    total_orders = len(bills)
+    
+    # Calculate total cost
+    total_cost = 0.0
+    for bill in bills:
+        bill_items = db.query(BillItem).filter(BillItem.bill_id == bill.id).all()
+        for item in bill_items:
+            product = db.query(Product).filter(Product.id == item.product_id).first()
+            if product and product.cost_price:
+                total_cost += float(product.cost_price) * item.quantity
+    
+    return {
+        "totalRevenue": total_revenue,
+        "totalCost": total_cost,
+        "totalProfit": total_revenue - total_cost,
+        "totalOrders": total_orders,
+        "avgOrderValue": total_revenue / total_orders if total_orders > 0 else 0
+    }
+
+
+def _get_top_products_data(month: Optional[str], limit: int, db: Session, current_user: User) -> List[Dict[str, Any]]:
+    """Get top products data"""
+    shop = _get_shop_or_404(db, current_user)
+    
+    query = db.query(
+        Product.name.label('product_name'),
+        func.sum(BillItem.quantity).label('total_quantity'),
+        func.sum(BillItem.total_price).label('total_revenue')
+    ).join(BillItem, Product.id == BillItem.product_id
+    ).join(Bill, BillItem.bill_id == Bill.id
+    ).filter(Bill.shop_id == shop.id)
+    
+    if month:
+        try:
+            year, month_num = month.split("-")
+            year = int(year)
+            month_num = int(month_num)
+            days_in_month = calendar.monthrange(year, month_num)[1]
+            start_date = datetime(year, month_num, 1)
+            end_date = datetime(year, month_num, days_in_month, 23, 59, 59)
+            
+            query = query.filter(
+                and_(
+                    Bill.created_at >= start_date,
+                    Bill.created_at <= end_date
+                )
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid month format. Use YYYY-MM"
+            )
+    
+    results = query.group_by(Product.id, Product.name
+    ).order_by(func.sum(BillItem.total_price).desc()
+    ).limit(limit).all()
+    
+    return [
+        {
+            "product_name": result.product_name,
+            "total_quantity": int(result.total_quantity),
+            "total_revenue": float(result.total_revenue)
+        }
+        for result in results
+    ]
+
+
+# Route handlers
+
+
 @router.get("/monthly-trends")
 def get_monthly_trends(
     db: Session = Depends(get_db),
@@ -25,15 +138,43 @@ def get_monthly_trends(
     Returns array of monthly data with revenue, profit, and order counts
     """
     try:
-        # Get the current user's first shop
-        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-        if not shops:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No shops found for the current user"
-            )
-        shop = shops[0]
-        shop_id = str(shop.id)
+        # Calculate last 6 months
+        today = datetime.now()
+        months_data = []
+        
+        for i in range(6):
+            # Calculate the month date
+            month_date = today.replace(day=1) - timedelta(days=30 * i)
+            month_str = month_date.strftime("%Y-%m")
+            
+            try:
+                month_stats = _get_monthly_stats_data(month_str, db, current_user)
+                months_data.append({
+                    "month": month_str,
+                    "revenue": month_stats["totalRevenue"],
+                    "profit": month_stats["totalProfit"],
+                    "orders": month_stats["totalOrders"]
+                })
+            except Exception as e:
+                print(f"Error getting stats for month {month_str}: {str(e)}")
+                months_data.append({
+                    "month": month_str,
+                    "revenue": 0.0,
+                    "profit": 0.0,
+                    "orders": 0
+                })
+        
+        # Reverse to get chronological order (oldest first)
+        return list(reversed(months_data))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Monthly trends error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching monthly trends: {str(e)}"
+        )
         
         # Calculate last 6 months
         today = datetime.now()
@@ -96,17 +237,15 @@ def get_monthly_stats(
     Get detailed stats for a specific month
     """
     try:
-        # Get the current user's first shop
-        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-        if not shops:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No shops found for the current user"
-            )
-        shop = shops[0]
-        shop_id = str(shop.id)
-        
-        # Parse month
+        return _get_monthly_stats_data(month, db, current_user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Monthly stats error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching monthly stats: {str(e)}"
+        )
         try:
             year, month_num = map(int, month.split('-'))
             month_date = datetime(year, month_num, 1)
@@ -170,15 +309,15 @@ def get_top_products(
     Get top selling products for a specific month or all time
     """
     try:
-        # Get the current user's first shop
-        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-        if not shops:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No shops found for the current user"
-            )
-        shop = shops[0]
-        shop_id = str(shop.id)
+        return _get_top_products_data(month, limit, db, current_user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Top products error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching top products: {str(e)}"
+        )
         
         # Build base query
         query = db.query(
@@ -242,15 +381,7 @@ def export_reports(
     Export reports in various formats
     """
     try:
-        # Get the current user's first shop
-        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-        if not shops:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No shops found for the current user"
-            )
-        shop = shops[0]
-        shop_id = str(shop.id)
+        shop = _get_shop_or_404(db, current_user)
         
         # Validate format
         if format not in ["json", "csv"]:
@@ -271,7 +402,7 @@ def export_reports(
         if type == "summary":
             # Get summary data
             if month:
-                data = get_monthly_stats(month, db, current_user)
+                data = _get_monthly_stats_data(month, db, current_user)
             else:
                 # Get all-time summary
                 all_bills = db.query(Bill).filter(Bill.shop_id == shop.id).all()
@@ -296,7 +427,7 @@ def export_reports(
                 }
         
         elif type == "products":
-            data = {"products": get_top_products(month, 50, db, current_user)}
+            data = {"products": _get_top_products_data(month, 50, db, current_user)}
         
         elif type == "customers":
             # Get customer data (placeholder - implement based on requirements)
@@ -311,7 +442,7 @@ def export_reports(
                 "type": type,
                 "format": format,
                 "exported_at": datetime.now().isoformat(),
-                "shop_id": shop_id
+                "shop_id": str(shop.id)
             }
         }
         
@@ -323,4 +454,3 @@ def export_reports(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error exporting reports: {str(e)}"
         )
-  

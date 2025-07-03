@@ -25,29 +25,39 @@ def read_products_current_shop(
     """
     Retrieve products for current shop (first shop of the user)
     """
-    # Get the current user's first shop
-    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-    if not shops:
+    try:
+        # Get the current user's first shop
+        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+        if not shops:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No shops found for the current user"
+            )
+        shop = shops[0]
+        
+        if low_stock:
+            products = crud_product.get_low_stock_products(
+                db, shop_id=str(shop.id), threshold=10
+            )
+        elif search:
+            products = crud_product.search_by_name_or_category(
+                db, shop_id=str(shop.id), query=search
+            )
+        else:
+            products = crud_product.get_by_shop(db, shop_id=str(shop.id))
+        
+        # Convert products to include current_stock
+        converted_products = [convert_product_for_frontend(product) for product in products]
+        return converted_products[skip:skip + limit]
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in read_products_current_shop: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No shops found for the current user"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving products: {str(e)}"
         )
-    shop = shops[0]
-    
-    if low_stock:
-        products = crud_product.get_low_stock_products(
-            db, shop_id=str(shop.id), threshold=10
-        )
-    elif search:
-        products = crud_product.search_by_name_or_category(
-            db, shop_id=str(shop.id), query=search
-        )
-    else:
-        products = crud_product.get_by_shop(db, shop_id=str(shop.id))
-    
-    # Convert products to include current_stock
-    converted_products = [convert_product_for_frontend(product) for product in products]
-    return converted_products[skip:skip + limit]
 
 
 @router.get("/{shop_id}")
@@ -221,6 +231,13 @@ def read_product_current_shop(
     """
     Get product by ID for current shop
     """
+    # Validate product_id parameter
+    if not product_id or product_id.lower() in ['undefined', 'null', 'none']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid product ID provided. Product ID cannot be undefined, null, or empty."
+        )
+    
     # Get the current user's first shop
     shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
     if not shops:
@@ -376,18 +393,61 @@ def debug_products(
     }
 
 
+@router.get("/products/debug/simple")
+def debug_products_simple(
+    *,
+    db: Session = Depends(get_db),
+):
+    """
+    Simple debug endpoint without authentication
+    """
+    try:
+        from ...models.product import Product
+        products = db.query(Product).all()
+        return {
+            "total_products": len(products),
+            "message": "Debug endpoint working",
+            "products": [{"id": str(p.id), "name": p.name} for p in products[:5]]
+        }
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
+
+
 # Helper function for frontend compatibility
 def convert_product_for_frontend(product):
-    return {
-        "id": str(product.id),
-        "name": product.name,
-        "description": product.description,
-        "price": float(product.price),
-        "stock_quantity": product.stock_quantity,
-        "current_stock": product.stock_quantity,  # Alias for frontend
-        "unit": product.unit,
-        "category": product.category,
-        "shop_id": str(product.shop_id),
-        "created_at": product.created_at.isoformat(),
-        "updated_at": product.updated_at.isoformat()
-    }
+    try:
+        return {
+            "id": str(product.id),
+            "name": product.name,
+            "description": product.description,
+            "price": float(product.price),
+            "stock_quantity": product.stock_quantity,
+            "current_stock": product.stock_quantity,  # Alias for frontend
+            "unit": product.unit,
+            "category": product.category,
+            "cost_price": float(product.cost_price) if product.cost_price else None,
+            "min_stock_level": product.min_stock_level,
+            "sku": product.sku,
+            "shop_id": str(product.shop_id),
+            "created_at": product.created_at.isoformat() if product.created_at else None,
+            "updated_at": product.updated_at.isoformat() if product.updated_at else None
+        }
+    except Exception as e:
+        print(f"Error converting product {product.id}: {str(e)}")
+        # Return a basic structure if conversion fails
+        return {
+            "id": str(product.id),
+            "name": product.name or "Unknown",
+            "description": product.description,
+            "price": float(product.price) if product.price else 0.0,
+            "stock_quantity": product.stock_quantity or 0,
+            "current_stock": product.stock_quantity or 0,
+            "unit": product.unit or "piece",
+            "category": product.category,
+            "cost_price": None,
+            "min_stock_level": 0,
+            "sku": product.sku,
+            "shop_id": str(product.shop_id),
+            "created_at": None,
+            "updated_at": None
+        }

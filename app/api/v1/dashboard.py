@@ -19,12 +19,7 @@ def get_dashboard_stats(
 ) -> Dict[str, Any]:
     """
     Get dashboard statistics for the current user's first shop
-    - Total sales (revenue)
-    - Number of customers
-    - Number of products
-    - Recent sales
-    - Low stock products
-    - Top customers
+    Returns simple stats matching frontend DashboardStats interface
     """
     try:
         # Get the current user's first shop
@@ -37,22 +32,78 @@ def get_dashboard_stats(
         shop = shops[0]
         shop_id = str(shop.id)
         
-        # Get basic stats
+        # Get basic counts
         customers = crud_customer.get_by_shop(db, shop_id=shop_id) or []
         products = crud_product.get_by_shop(db, shop_id=shop_id) or []
+        bills = crud_bill.get_by_shop(db, shop_id=shop_id) or []
         
-        # Get revenue stats - total sales and recent bills
-        total_revenue = crud_bill.get_total_revenue(db, shop_id=shop_id) or 0.0
+        # Get revenue stats
+        total_sales = crud_bill.get_total_revenue(db, shop_id=shop_id) or 0.0
+        
+        # Get pending payments
+        pending_bills = crud_bill.get_pending_bills(db, shop_id=shop_id) or []
+        pending_payments = sum(
+            float(bill.total_amount - bill.paid_amount) 
+            for bill in pending_bills 
+            if hasattr(bill, 'total_amount') and hasattr(bill, 'paid_amount')
+        )
+        
+        # Get low stock products count
+        low_stock_products_list = []
+        try:
+            low_stock_products_list = crud_product.get_low_stock_products(
+                db, shop_id=shop_id, threshold=10
+            ) or []
+        except Exception as e:
+            print(f"Error getting low stock products: {str(e)}")
+        
+        # Return simple flat structure matching frontend interface
+        return {
+            "total_products": len(products),
+            "total_customers": len(customers),
+            "total_bills": len(bills),
+            "total_sales": float(total_sales),
+            "pending_payments": float(pending_payments),
+            "low_stock_products": len(low_stock_products_list)
+        }
+        
+    except Exception as e:
+        print(f"Dashboard stats error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching dashboard stats: {str(e)}"
+        )
+
+
+@router.get("/details")
+def get_dashboard_details(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    """
+    Get detailed dashboard data including recent bills, low stock products, and top customers
+    """
+    try:
+        # Get the current user's first shop
+        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+        if not shops:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No shops found for the current user"
+            )
+        shop = shops[0]
+        shop_id = str(shop.id)
+        
+        # Get recent bills
         recent_bills = crud_bill.get_recent_bills(db, shop_id=shop_id, limit=5) or []
         
-        # Get low stock products
+        # Get low stock products (detailed list)
         low_stock_products = []
         try:
             low_stock_products = crud_product.get_low_stock_products(
-                db, shop_id=shop_id, threshold=10, limit=5
+                db, shop_id=shop_id, threshold=10, limit=10
             ) or []
         except Exception as e:
-            # Log error but continue with empty list
             print(f"Error getting low stock products: {str(e)}")
         
         # Get top customers by revenue
@@ -60,19 +111,12 @@ def get_dashboard_stats(
         try:
             top_customers = crud_customer.get_top_customers(db, shop_id=shop_id, limit=5) or []
         except Exception as e:
-            # Log error but continue with empty list
             print(f"Error getting top customers: {str(e)}")
         
-        # Format response with safe handling of data
         return {
             "shop": {
                 "id": shop_id,
                 "name": shop.name if hasattr(shop, 'name') else "",
-            },
-            "stats": {
-                "total_revenue": float(total_revenue) if total_revenue else 0.0,
-                "customer_count": len(customers),
-                "product_count": len(products),
             },
             "recent_bills": [
                 {
@@ -88,8 +132,9 @@ def get_dashboard_stats(
                 {
                     "id": str(product.id),
                     "name": product.name if hasattr(product, 'name') else "",
-                    "quantity": product.stock_quantity if hasattr(product, 'stock_quantity') else 0,
-                    "price": float(product.price) if hasattr(product, 'price') else 0.0
+                    "current_stock": product.stock_quantity if hasattr(product, 'stock_quantity') else 0,
+                    "price": float(product.price) if hasattr(product, 'price') else 0.0,
+                    "min_stock_level": product.min_stock_level if hasattr(product, 'min_stock_level') else 0
                 }
                 for product in low_stock_products if product
             ],
@@ -103,10 +148,10 @@ def get_dashboard_stats(
                 for customer in top_customers if customer
             ]
         }
+        
     except Exception as e:
-        # Global exception handler to prevent 500 errors without CORS headers
-        print(f"Dashboard stats error: {str(e)}")
+        print(f"Dashboard details error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching dashboard stats: {str(e)}"
+            detail=f"Error fetching dashboard details: {str(e)}"
         )
