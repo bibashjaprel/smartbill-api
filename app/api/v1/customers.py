@@ -10,7 +10,10 @@ from ...schemas.customer import Customer, CustomerCreate, CustomerUpdate, Custom
 from ...schemas.bill import UdharoTransactionCreate, UdharoTransaction
 from ...api.deps import get_user_shop, get_current_active_user
 from ...models.shop import Shop
+from ...utils.error_handlers import handle_api_error
 from ...models.user import User
+from ...utils.common import get_user_shop_or_404, validate_resource_id
+from ...utils.api import get_customer_or_404, apply_search_filter
 
 router = APIRouter()
 
@@ -27,14 +30,7 @@ def read_customers_current_shop(
     """
     Retrieve customers for current shop (first shop of the user)
     """
-    # Get the current user's first shop
-    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-    if not shops:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No shops found for the current user"
-        )
-    shop = shops[0]
+    shop = get_user_shop_or_404(db, current_user)
     
     if search:
         customers = crud_customer.search_by_name_or_phone(
@@ -93,19 +89,8 @@ def create_customer_current_shop(
     """
     Create new customer for current shop (first shop of the user)
     """
-    # Get the current user's first shop
-    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-    if not shops:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No shops found for the current user"
-        )
-    shop = shops[0]
-    
-    # Set the shop_id for the customer
+    shop = get_user_shop_or_404(db, current_user)
     customer_in.shop_id = shop.id
-    
-    # Create the customer
     customer = crud_customer.create(db, obj_in=customer_in)
     return customer
 
@@ -120,6 +105,7 @@ def read_customer(
     """
     Get customer by ID
     """
+    validate_resource_id(customer_id, "customer")
     customer = crud_customer.get_by_shop_and_id(
         db, shop_id=str(shop.id), customer_id=customer_id
     )
@@ -128,6 +114,20 @@ def read_customer(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Customer not found"
         )
+    return customer
+
+
+@router.get("/customers/{customer_id}", response_model=Customer)
+def read_customer_current_shop(
+    *,
+    db: Session = Depends(get_db),
+    customer_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get customer by ID for current shop
+    """
+    customer = get_customer_or_404(db, current_user, customer_id)
     return customer
 
 
@@ -142,6 +142,7 @@ def update_customer(
     """
     Update a customer
     """
+    validate_resource_id(customer_id, "customer")
     customer = crud_customer.get_by_shop_and_id(
         db, shop_id=str(shop.id), customer_id=customer_id
     )
@@ -151,65 +152,6 @@ def update_customer(
             detail="Customer not found"
         )
     customer = crud_customer.update(db, db_obj=customer, obj_in=customer_in)
-    return customer
-
-
-@router.delete("/{shop_id}/customers/{customer_id}")
-def delete_customer(
-    *,
-    db: Session = Depends(get_db),
-    customer_id: str,
-    shop: Shop = Depends(get_user_shop)
-):
-    """
-    Delete a customer
-    """
-    customer = crud_customer.get_by_shop_and_id(
-        db, shop_id=str(shop.id), customer_id=customer_id
-    )
-    if not customer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found"
-        )
-    crud_customer.remove(db, id=customer_id)
-    return {"message": "Customer deleted successfully"}
-
-
-@router.get("/customers/{customer_id}", response_model=Customer)
-def read_customer_current_shop(
-    *,
-    db: Session = Depends(get_db),
-    customer_id: str,
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Get customer by ID for current shop
-    """
-    # Validate customer_id parameter
-    if not customer_id or customer_id.lower() in ['undefined', 'null', 'none']:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid customer ID provided. Customer ID cannot be undefined, null, or empty."
-        )
-    
-    # Get the current user's first shop
-    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-    if not shops:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No shops found for the current user"
-        )
-    shop = shops[0]
-    
-    customer = crud_customer.get_by_shop_and_id(
-        db, shop_id=str(shop.id), customer_id=customer_id
-    )
-    if not customer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found"
-        )
     return customer
 
 
@@ -224,22 +166,22 @@ def update_customer_current_shop(
     """
     Update a customer for current shop
     """
-    # Validate customer_id parameter
-    if not customer_id or customer_id.lower() in ['undefined', 'null', 'none']:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid customer ID provided. Customer ID cannot be undefined, null, or empty."
-        )
-    
-    # Get the current user's first shop
-    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-    if not shops:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No shops found for the current user"
-        )
-    shop = shops[0]
-    
+    customer = get_customer_or_404(db, current_user, customer_id)
+    customer = crud_customer.update(db, db_obj=customer, obj_in=customer_in)
+    return customer
+
+
+@router.delete("/{shop_id}/customers/{customer_id}")
+def delete_customer(
+    *,
+    db: Session = Depends(get_db),
+    customer_id: str,
+    shop: Shop = Depends(get_user_shop)
+):
+    """
+    Delete a customer
+    """
+    validate_resource_id(customer_id, "customer")
     customer = crud_customer.get_by_shop_and_id(
         db, shop_id=str(shop.id), customer_id=customer_id
     )
@@ -248,8 +190,8 @@ def update_customer_current_shop(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Customer not found"
         )
-    customer = crud_customer.update(db, db_obj=customer, obj_in=customer_in)
-    return customer
+    crud_customer.remove(db, id=customer_id)
+    return {"message": "Customer deleted successfully"}
 
 
 @router.delete("/customers/{customer_id}")
@@ -262,30 +204,7 @@ def delete_customer_current_shop(
     """
     Delete a customer for current shop
     """
-    # Validate customer_id parameter
-    if not customer_id or customer_id.lower() in ['undefined', 'null', 'none']:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid customer ID provided. Customer ID cannot be undefined, null, or empty."
-        )
-    
-    # Get the current user's first shop
-    shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-    if not shops:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No shops found for the current user"
-        )
-    shop = shops[0]
-    
-    customer = crud_customer.get_by_shop_and_id(
-        db, shop_id=str(shop.id), customer_id=customer_id
-    )
-    if not customer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found"
-        )
+    customer = get_customer_or_404(db, current_user, customer_id)
     crud_customer.remove(db, id=customer_id)
     return {"message": "Customer deleted successfully"}
 
@@ -302,24 +221,7 @@ def record_udharo_payment(
     Record a payment for a customer's udharo (credit) balance
     """
     try:
-        # Get the current user's first shop
-        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-        if not shops:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No shops found for the current user"
-            )
-        shop = shops[0]
-        
-        # Verify customer exists and belongs to this shop
-        customer = crud_customer.get_by_shop_and_id(
-            db, shop_id=str(shop.id), customer_id=customer_id
-        )
-        if not customer:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Customer not found"
-            )
+        customer = get_customer_or_404(db, current_user, customer_id)
         
         # Validate payment amount doesn't exceed current balance
         if payment_data.transaction_type == "payment":
@@ -359,24 +261,7 @@ def get_customer_udharo_history(
     Get udharo transaction history for a customer
     """
     try:
-        # Get the current user's first shop
-        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-        if not shops:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No shops found for the current user"
-            )
-        shop = shops[0]
-        
-        # Verify customer exists and belongs to this shop
-        customer = crud_customer.get_by_shop_and_id(
-            db, shop_id=str(shop.id), customer_id=customer_id
-        )
-        if not customer:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Customer not found"
-            )
+        customer = get_customer_or_404(db, current_user, customer_id)
         
         # Get transaction history
         transactions = crud_udharo.get_by_customer(db, customer_id=customer_id)

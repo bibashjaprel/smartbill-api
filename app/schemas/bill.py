@@ -22,7 +22,7 @@ class BillItemInDBBase(BillItemBase):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class BillItem(BillItemInDBBase):
@@ -61,7 +61,7 @@ class BillInDBBase(BillBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Bill(BillInDBBase):
@@ -92,7 +92,7 @@ class UdharoTransactionInDBBase(UdharoTransactionBase):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class UdharoTransaction(UdharoTransactionInDBBase):

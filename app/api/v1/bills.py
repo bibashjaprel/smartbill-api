@@ -12,6 +12,7 @@ from ...schemas.bill import (
 )
 from ...api.deps import get_user_shop, get_current_active_user
 from ...models.shop import Shop
+from ...utils.error_handlers import handle_api_error
 from ...models.user import User
 
 router = APIRouter()
@@ -618,4 +619,3 @@ async def create_bill_verbose(
     except Exception as e:
         return {"error": f"Unexpected error: {str(e)}"}
 
-from pydantic import ValidationError

@@ -8,6 +8,7 @@ from ...crud.shop import shop as crud_shop
 from ...crud.bill import bill as crud_bill
 from ...api.deps import get_current_active_user
 from ...models.user import User
+from ...utils.error_handlers import handle_api_error
 from ...models.bill import Bill, BillItem
 from ...models.product import Product
 import calendar
