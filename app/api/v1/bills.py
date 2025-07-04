@@ -130,7 +130,7 @@ def read_bill(
     """
     Get bill by ID with details
     """
-    bill = crud_bill.get_by_shop_and_id(
+    bill = crud_bill.get_by_shop_and_id_with_items(
         db, shop_id=str(shop.id), bill_id=bill_id
     )
     if not bill:
@@ -138,7 +138,43 @@ def read_bill(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Bill not found"
         )
-    return bill
+    
+    # Build the response with detailed items
+    items = []
+    for item in bill.bill_items:
+        items.append({
+            "id": item.id,
+            "bill_id": item.bill_id,
+            "product_id": item.product_id,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price,
+            "total_price": item.total_price,
+            "created_at": item.created_at,
+            "product_name": item.product.name if item.product else "Unknown Product",
+            "product_unit": item.product.unit if item.product else "pcs"
+        })
+    
+    # Calculate remaining amount
+    remaining_amount = bill.total_amount - bill.paid_amount
+    
+    # Build response
+    response = {
+        "id": bill.id,
+        "bill_number": bill.bill_number,
+        "customer_id": bill.customer_id,
+        "shop_id": bill.shop_id,
+        "total_amount": bill.total_amount,
+        "paid_amount": bill.paid_amount,
+        "payment_method": bill.payment_method,
+        "payment_status": bill.payment_status,
+        "created_at": bill.created_at,
+        "updated_at": bill.updated_at,
+        "items": items,
+        "customer_name": bill.customer.name if bill.customer else None,
+        "remaining_amount": remaining_amount
+    }
+    
+    return response
 
 
 @router.put("/{shop_id}/bills/{bill_id}", response_model=Bill)
@@ -358,7 +394,7 @@ def read_bill_current_shop(
         )
     shop = shops[0]
     
-    bill = crud_bill.get_by_shop_and_id(
+    bill = crud_bill.get_by_shop_and_id_with_items(
         db, shop_id=str(shop.id), bill_id=bill_id
     )
     if not bill:
@@ -366,7 +402,38 @@ def read_bill_current_shop(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Bill not found"
         )
-    return bill
+    
+    # Convert to BillWithDetails format
+    bill_data = {
+        "id": bill.id,
+        "bill_number": bill.bill_number,
+        "customer_id": bill.customer_id,
+        "shop_id": bill.shop_id,
+        "total_amount": bill.total_amount,
+        "paid_amount": bill.paid_amount,
+        "payment_method": bill.payment_method,
+        "payment_status": bill.payment_status,
+        "created_at": bill.created_at,
+        "updated_at": bill.updated_at,
+        "items": [
+            {
+                "id": item.id,
+                "bill_id": item.bill_id,
+                "product_id": item.product_id,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "total_price": item.total_price,
+                "created_at": item.created_at,
+                "product_name": item.product.name if item.product else "Unknown",
+                "product_unit": item.product.unit if item.product else "piece"
+            }
+            for item in bill.bill_items
+        ],
+        "customer_name": bill.customer.name if bill.customer else None,
+        "remaining_amount": bill.total_amount - bill.paid_amount
+    }
+    
+    return bill_data
 
 
 @router.put("/bills/{bill_id}", response_model=Bill)

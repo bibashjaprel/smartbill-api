@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from decimal import Decimal
 from ..models.bill import Bill, BillItem, UdharoTransaction
@@ -15,6 +15,20 @@ class CRUDBill(CRUDBase[Bill, BillCreate, BillUpdate]):
     ) -> Optional[Bill]:
         return (
             db.query(Bill)
+            .filter(Bill.shop_id == shop_id, Bill.id == bill_id)
+            .first()
+        )
+
+    def get_by_shop_and_id_with_items(
+        self, db: Session, *, shop_id: str, bill_id: str
+    ) -> Optional[Bill]:
+        """Get bill with items and customer details"""
+        return (
+            db.query(Bill)
+            .options(
+                joinedload(Bill.bill_items).joinedload(BillItem.product),
+                joinedload(Bill.customer)
+            )
             .filter(Bill.shop_id == shop_id, Bill.id == bill_id)
             .first()
         )
