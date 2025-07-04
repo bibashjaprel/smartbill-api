@@ -5,10 +5,11 @@ from ...core.database import get_db
 from ...crud.shop import shop as crud_shop
 from ...crud.product import product as crud_product
 from ...crud.customer import customer as crud_customer
-from ...crud.bill import bill as crud_bill
+from ...crud.bill import bill as crud_bill, udharo_transaction as crud_udharo
 from ...api.deps import get_current_active_user
 from ...models.user import User
 from ...utils.error_handlers import handle_api_error
+from decimal import Decimal
 
 router = APIRouter()
 
@@ -164,8 +165,7 @@ def get_udharo_summary(
     current_user: User = Depends(get_current_active_user)
 ) -> Dict[str, Any]:
     """
-    Get udharo summary for the current user's shop
-    Returns data matching frontend UdharoSummary interface
+    Get udharo summary in the format expected by the frontend
     """
     try:
         # Get the current user's first shop
@@ -183,48 +183,44 @@ def get_udharo_summary(
             db, shop_id=shop_id
         ) or []
         
-        # Calculate total credit balance
-        total_credit_balance = sum(
-            float(customer.udharo_balance) 
-            for customer in customers_with_balance 
-            if hasattr(customer, 'udharo_balance') and customer.udharo_balance
-        )
+        # Calculate total outstanding credit
+        total_credit = sum(customer.udharo_balance for customer in customers_with_balance) if customers_with_balance else Decimal('0.0')
         
-        # Get udharo transactions to calculate total payments
-        from ...crud.bill import udharo_transaction as crud_udharo
+        # Calculate average balance if there are customers
+        avg_balance = (total_credit / len(customers_with_balance)) if customers_with_balance and len(customers_with_balance) > 0 else Decimal('0.0')
         
+        # Get all transactions for these customers to calculate total payments
         customers_with_credit = []
         for customer in customers_with_balance:
-            if hasattr(customer, 'udharo_balance') and customer.udharo_balance > 0:
-                # Get all transactions for this customer
-                transactions = crud_udharo.get_by_customer(db, customer_id=str(customer.id))
-                
-                # Calculate total credit and payments
-                total_credit = sum(
-                    float(t.amount) for t in transactions 
-                    if hasattr(t, 'transaction_type') and t.transaction_type == 'credit'
-                )
-                total_payments = sum(
-                    float(t.amount) for t in transactions 
-                    if hasattr(t, 'transaction_type') and t.transaction_type == 'payment'
-                )
-                
-                customers_with_credit.append({
-                    "customer_id": str(customer.id),
-                    "customer_name": customer.name if hasattr(customer, 'name') else "",
-                    "total_credit": total_credit,
-                    "total_payments": total_payments,
-                    "balance": float(customer.udharo_balance)
-                })
+            transactions = crud_udharo.get_by_customer(db, customer_id=str(customer.id))
+            
+            # Calculate total credit and payments
+            total_credit_per_customer = sum(
+                float(t.amount) for t in transactions 
+                if hasattr(t, 'transaction_type') and t.transaction_type == 'credit'
+            )
+            total_payments = sum(
+                float(t.amount) for t in transactions 
+                if hasattr(t, 'transaction_type') and t.transaction_type == 'payment'
+            )
+            
+            customers_with_credit.append({
+                "customer_id": str(customer.id),
+                "customer_name": customer.name if hasattr(customer, 'name') else "",
+                "total_credit": total_credit_per_customer,
+                "total_payments": total_payments,
+                "balance": float(customer.udharo_balance)
+            })
         
+        # Format the response in the structure expected by the frontend
         return {
-            "total_customers": len(customers_with_credit),
-            "total_credit_balance": total_credit_balance,
+            "total_customers": len(customers_with_balance),
+            "total_credit_balance": float(total_credit),
+            "average_balance": float(avg_balance),
             "customers_with_credit": customers_with_credit
         }
-        
     except Exception as e:
-        print(f"Udharo summary error: {str(e)}")
+        print(f"Error fetching udharo summary: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching udharo summary: {str(e)}"

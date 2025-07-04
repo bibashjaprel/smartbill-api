@@ -277,30 +277,62 @@ def create_udharo_transaction(
     return transaction
 
 
-# Routes without shop_id prefix (for general access)
+# Routes without shop_id prefix (for general access) - MUST COME FIRST
 @router.get("/", response_model=List[Bill])
 def read_bills_for_current_shop(
     *,
     db: Session = Depends(get_db),
-    shop: Shop = Depends(get_user_shop),
+    shop_id: str = Query(None, description="Shop ID to filter bills (optional)"),
     skip: int = 0,
     limit: int = 100,
     customer_id: str = Query(None, description="Filter by customer ID"),
-    status: str = Query(None, description="Filter by payment status")
+    status: str = Query(None, description="Filter by payment status"),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
-    Retrieve bills for the current user's shop
+    Retrieve bills with optional shop_id query parameter (for frontend compatibility)
     """
-    if customer_id:
-        bills = crud_bill.get_by_customer(db, customer_id=customer_id)
-        # Filter by shop to ensure security
-        bills = [bill for bill in bills if str(bill.shop_id) == str(shop.id)]
-    elif status == 'pending':
-        bills = crud_bill.get_pending_bills(db, shop_id=str(shop.id))
-    else:
-        bills = crud_bill.get_by_shop(db, shop_id=str(shop.id))
-    
-    return bills[skip:skip + limit]
+    try:
+        # If shop_id is provided, validate it belongs to the current user
+        if shop_id:
+            user_shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+            user_shop_ids = [str(shop.id) for shop in user_shops]
+            
+            if shop_id not in user_shop_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have access to this shop"
+                )
+            
+            target_shop_id = shop_id
+        else:
+            # Fall back to current user's first shop
+            user_shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+            if not user_shops:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No shops found for the current user"
+                )
+            target_shop_id = str(user_shops[0].id)
+        
+        # Get bills based on filters
+        if customer_id:
+            bills = crud_bill.get_by_customer(db, customer_id=customer_id)
+            # Filter by shop to ensure security
+            bills = [bill for bill in bills if str(bill.shop_id) == target_shop_id]
+        elif status == 'pending':
+            bills = crud_bill.get_pending_bills(db, shop_id=target_shop_id)
+        else:
+            bills = crud_bill.get_by_shop(db, shop_id=target_shop_id)
+        
+        return bills[skip:skip + limit]
+        
+    except Exception as e:
+        print(f"Error fetching bills: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching bills: {str(e)}"
+        )
 
 
 @router.post("/", response_model=Bill)
@@ -308,13 +340,22 @@ async def create_bill_for_current_shop(
     *,
     db: Session = Depends(get_db),
     bill_in: BillCreate,
-    shop: Shop = Depends(get_user_shop),
+    current_user: User = Depends(get_current_active_user),
     request: Request
 ):
     """
     Create new bill with items for current shop
     """
     try:
+        # Get the current user's first shop
+        user_shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+        if not user_shops:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No shops found for the current user"
+            )
+        shop = user_shops[0]
+        
         # Log the request body for debugging
         request_body = await request.json()
         print(f"Received bill create request for current shop: {request_body}")
@@ -472,3 +513,79 @@ def update_bill_for_current_shop(
     
     bill = crud_bill.update(db, db_obj=bill, obj_in=bill_in)
     return bill
+
+
+# Route to handle GET /bills?shop_id=xxx (frontend compatibility)
+@router.get("", response_model=List[Bill])
+def read_bills_with_shop_query(
+    *,
+    db: Session = Depends(get_db),
+    shop_id: str = Query(None, description="Shop ID to filter bills"),
+    skip: int = 0,
+    limit: int = 100,
+    customer_id: str = Query(None, description="Filter by customer ID"),
+    status: str = Query(None, description="Filter by payment status"),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Retrieve bills with shop_id as query parameter (for frontend compatibility)
+    """
+    try:
+        # If shop_id is provided, validate it belongs to the current user
+        if shop_id:
+            user_shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+            user_shop_ids = [str(shop.id) for shop in user_shops]
+            
+            if shop_id not in user_shop_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have access to this shop"
+                )
+            
+            # Use the provided shop_id
+            target_shop_id = shop_id
+        else:
+            # Fall back to current user's first shop
+            user_shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+            if not user_shops:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No shops found for the current user"
+                )
+            target_shop_id = str(user_shops[0].id)
+        
+        # Get bills based on filters
+        if customer_id:
+            bills = crud_bill.get_by_customer(db, customer_id=customer_id)
+            # Filter by shop to ensure security
+            bills = [bill for bill in bills if str(bill.shop_id) == target_shop_id]
+        elif status == 'pending':
+            bills = crud_bill.get_pending_bills(db, shop_id=target_shop_id)
+        else:
+            bills = crud_bill.get_by_shop(db, shop_id=target_shop_id)
+        
+        return bills[skip:skip + limit]
+        
+    except Exception as e:
+        print(f"Error fetching bills: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching bills: {str(e)}"
+        )
+
+
+@router.post("", response_model=Bill)
+async def create_bill_no_slash(
+    *,
+    db: Session = Depends(get_db),
+    bill_in: BillCreate,
+    shop: Shop = Depends(get_user_shop),
+    request: Request
+):
+    """
+    Create new bill with items (no trailing slash)
+    """
+    # Delegate to the main create function
+    return await create_bill_for_current_shop(
+        db=db, bill_in=bill_in, shop=shop, request=request
+    )

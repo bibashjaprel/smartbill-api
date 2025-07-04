@@ -225,8 +225,8 @@ def record_udharo_payment(
         
         # Validate payment amount doesn't exceed current balance
         if payment_data.transaction_type == "payment":
-            current_balance = float(customer.udharo_balance) if hasattr(customer, 'udharo_balance') and customer.udharo_balance else 0.0
-            payment_amount = float(payment_data.amount)
+            current_balance = customer.udharo_balance if hasattr(customer, 'udharo_balance') and customer.udharo_balance else Decimal('0.0')
+            payment_amount = Decimal(str(payment_data.amount))
             
             if payment_amount > current_balance:
                 raise HTTPException(
@@ -237,6 +237,11 @@ def record_udharo_payment(
         # Create the transaction
         payment_data.customer_id = customer_id
         transaction = crud_udharo.create(db, obj_in=payment_data)
+
+        # Update udharo_balance if this is a payment
+        if payment_data.transaction_type == "payment":
+            payment_amount = Decimal(str(payment_data.amount))
+            crud_customer.update_udharo_balance(db, customer_id=customer_id, amount=-payment_amount)
         
         return transaction
         
