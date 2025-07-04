@@ -1,10 +1,13 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from decimal import Decimal
 from ...core.database import get_db
 from ...crud.customer import customer as crud_customer
 from ...crud.shop import shop as crud_shop
+from ...crud.bill import udharo_transaction as crud_udharo
 from ...schemas.customer import Customer, CustomerCreate, CustomerUpdate, CustomerWithDetails
+from ...schemas.bill import UdharoTransactionCreate, UdharoTransaction
 from ...api.deps import get_user_shop, get_current_active_user
 from ...models.shop import Shop
 from ...models.user import User
@@ -285,3 +288,106 @@ def delete_customer_current_shop(
         )
     crud_customer.remove(db, id=customer_id)
     return {"message": "Customer deleted successfully"}
+
+
+@router.post("/customers/{customer_id}/udharo", response_model=UdharoTransaction)
+def record_udharo_payment(
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    customer_id: str,
+    payment_data: UdharoTransactionCreate
+):
+    """
+    Record a payment for a customer's udharo (credit) balance
+    """
+    try:
+        # Get the current user's first shop
+        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+        if not shops:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No shops found for the current user"
+            )
+        shop = shops[0]
+        
+        # Verify customer exists and belongs to this shop
+        customer = crud_customer.get_by_shop_and_id(
+            db, shop_id=str(shop.id), customer_id=customer_id
+        )
+        if not customer:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer not found"
+            )
+        
+        # Validate payment amount doesn't exceed current balance
+        if payment_data.transaction_type == "payment":
+            current_balance = float(customer.udharo_balance) if hasattr(customer, 'udharo_balance') and customer.udharo_balance else 0.0
+            payment_amount = float(payment_data.amount)
+            
+            if payment_amount > current_balance:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Payment amount (Rs{payment_amount}) cannot exceed current balance (Rs{current_balance})"
+                )
+        
+        # Create the transaction
+        payment_data.customer_id = customer_id
+        transaction = crud_udharo.create(db, obj_in=payment_data)
+        
+        return transaction
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Udharo payment error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error recording udharo payment: {str(e)}"
+        )
+
+
+@router.get("/customers/{customer_id}/udharo", response_model=List[UdharoTransaction])
+def get_customer_udharo_history(
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    customer_id: str
+):
+    """
+    Get udharo transaction history for a customer
+    """
+    try:
+        # Get the current user's first shop
+        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+        if not shops:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No shops found for the current user"
+            )
+        shop = shops[0]
+        
+        # Verify customer exists and belongs to this shop
+        customer = crud_customer.get_by_shop_and_id(
+            db, shop_id=str(shop.id), customer_id=customer_id
+        )
+        if not customer:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer not found"
+            )
+        
+        # Get transaction history
+        transactions = crud_udharo.get_by_customer(db, customer_id=customer_id)
+        
+        return transactions
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Udharo history error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching udharo history: {str(e)}"
+        )
