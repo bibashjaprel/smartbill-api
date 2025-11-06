@@ -131,95 +131,110 @@ def _get_top_products_data(month: Optional[str], limit: int, db: Session, curren
 
 @router.get("/monthly-trends")
 def get_monthly_trends(
+    from_date: Optional[str] = Query(None, description="Start date in YYYY-MM-DD format (optional)"),
+    to_date: Optional[str] = Query(None, description="End date in YYYY-MM-DD format (optional)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ) -> List[Dict[str, Any]]:
     """
-    Get monthly trends for last 6 months
+    Get monthly trends for a date range or last 6 months if no range specified
     Returns array of monthly data with revenue, profit, and order counts
+    
+    Examples:
+    - No parameters: Returns last 6 months
+    - from_date=2024-01-01&to_date=2024-06-30: Returns Jan-Jun 2024 monthly data
     """
     try:
-        # Calculate last 6 months
-        today = datetime.now()
         months_data = []
         
-        for i in range(6):
-            # Calculate the month date
-            month_date = today.replace(day=1) - timedelta(days=30 * i)
-            month_str = month_date.strftime("%Y-%m")
-            
+        if from_date and to_date:
+            # Custom date range provided
             try:
-                month_stats = _get_monthly_stats_data(month_str, db, current_user)
-                months_data.append({
-                    "month": month_str,
-                    "revenue": month_stats["totalRevenue"],
-                    "profit": month_stats["totalProfit"],
-                    "orders": month_stats["totalOrders"]
-                })
-            except Exception as e:
-                print(f"Error getting stats for month {month_str}: {str(e)}")
-                months_data.append({
-                    "month": month_str,
-                    "revenue": 0.0,
-                    "profit": 0.0,
-                    "orders": 0
-                })
+                start_date = datetime.strptime(from_date, "%Y-%m-%d")
+                end_date = datetime.strptime(to_date, "%Y-%m-%d")
+                
+                if start_date > end_date:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="from_date must be before or equal to to_date"
+                    )
+                
+                # Generate list of months between start and end dates
+                current_month = start_date.replace(day=1)
+                end_month = end_date.replace(day=1)
+                
+                while current_month <= end_month:
+                    month_str = current_month.strftime("%Y-%m")
+                    
+                    try:
+                        month_stats = _get_monthly_stats_data(month_str, db, current_user)
+                        months_data.append({
+                            "month": month_str,
+                            "revenue": month_stats["totalRevenue"],
+                            "profit": month_stats["totalProfit"],
+                            "orders": month_stats["totalOrders"]
+                        })
+                    except Exception as e:
+                        print(f"Error getting stats for month {month_str}: {str(e)}")
+                        months_data.append({
+                            "month": month_str,
+                            "revenue": 0.0,
+                            "profit": 0.0,
+                            "orders": 0
+                        })
+                    
+                    # Move to next month
+                    if current_month.month == 12:
+                        current_month = current_month.replace(year=current_month.year + 1, month=1)
+                    else:
+                        current_month = current_month.replace(month=current_month.month + 1)
+                        
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid date format. Use YYYY-MM-DD"
+                )
         
-        # Reverse to get chronological order (oldest first)
-        return list(reversed(months_data))
+        elif from_date or to_date:
+            # Only one date provided - invalid
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Both from_date and to_date must be provided together, or neither"
+            )
+        
+        else:
+            # Default behavior: last 6 months
+            today = datetime.now()
+            
+            for i in range(6):
+                # Calculate the month date
+                month_date = today.replace(day=1) - timedelta(days=30 * i)
+                month_str = month_date.strftime("%Y-%m")
+                
+                try:
+                    month_stats = _get_monthly_stats_data(month_str, db, current_user)
+                    months_data.append({
+                        "month": month_str,
+                        "revenue": month_stats["totalRevenue"],
+                        "profit": month_stats["totalProfit"],
+                        "orders": month_stats["totalOrders"]
+                    })
+                except Exception as e:
+                    print(f"Error getting stats for month {month_str}: {str(e)}")
+                    months_data.append({
+                        "month": month_str,
+                        "revenue": 0.0,
+                        "profit": 0.0,
+                        "orders": 0
+                    })
+            
+            # Reverse to get chronological order (oldest first) for default behavior
+            months_data = list(reversed(months_data))
+        
+        return months_data
         
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Monthly trends error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching monthly trends: {str(e)}"
-        )
-        
-        # Calculate last 6 months
-        today = datetime.now()
-        months_data = []
-        
-        for i in range(6):
-            # Calculate the month date
-            month_date = today.replace(day=1) - timedelta(days=30 * i)
-            month_str = month_date.strftime("%Y-%m")
-            
-            # Get bills for this month
-            month_bills = db.query(Bill).filter(
-                and_(
-                    Bill.shop_id == shop.id,
-                    extract('year', Bill.created_at) == month_date.year,
-                    extract('month', Bill.created_at) == month_date.month
-                )
-            ).all()
-            
-            # Calculate metrics
-            total_revenue = sum(float(bill.total_amount) for bill in month_bills)
-            total_orders = len(month_bills)
-            
-            # Calculate profit (revenue - cost)
-            total_cost = 0.0
-            for bill in month_bills:
-                bill_items = db.query(BillItem).filter(BillItem.bill_id == bill.id).all()
-                for item in bill_items:
-                    product = db.query(Product).filter(Product.id == item.product_id).first()
-                    if product and product.cost_price:
-                        total_cost += float(product.cost_price) * item.quantity
-            
-            total_profit = total_revenue - total_cost
-            
-            months_data.append({
-                "month": month_str,
-                "revenue": total_revenue,
-                "profit": total_profit,
-                "orders": total_orders
-            })
-        
-        # Reverse to get chronological order (oldest to newest)
-        return list(reversed(months_data))
-        
     except Exception as e:
         print(f"Monthly trends error: {str(e)}")
         raise HTTPException(
@@ -230,7 +245,7 @@ def get_monthly_trends(
 
 @router.get("/monthly-stats")
 def get_monthly_stats(
-    month: str = Query(..., description="Month in YYYY-MM format"),
+    month: Optional[str] = Query(None, description="Month in YYYY-MM format (defaults to current month)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ) -> Dict[str, Any]:
@@ -238,6 +253,11 @@ def get_monthly_stats(
     Get detailed stats for a specific month
     """
     try:
+        # If no month provided, use current month
+        if month is None:
+            current_date = datetime.now()
+            month = current_date.strftime("%Y-%m")
+        
         return _get_monthly_stats_data(month, db, current_user)
     except HTTPException:
         raise
@@ -247,55 +267,27 @@ def get_monthly_stats(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching monthly stats: {str(e)}"
         )
-        try:
-            year, month_num = map(int, month.split('-'))
-            month_date = datetime(year, month_num, 1)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid month format. Use YYYY-MM"
-            )
-        
-        # Get bills for this month
-        month_bills = db.query(Bill).filter(
-            and_(
-                Bill.shop_id == shop.id,
-                extract('year', Bill.created_at) == year,
-                extract('month', Bill.created_at) == month_num
-            )
-        ).all()
-        
-        # Calculate metrics
-        total_revenue = sum(float(bill.total_amount) for bill in month_bills)
-        total_orders = len(month_bills)
-        
-        # Calculate total cost and profit
-        total_cost = 0.0
-        for bill in month_bills:
-            bill_items = db.query(BillItem).filter(BillItem.bill_id == bill.id).all()
-            for item in bill_items:
-                product = db.query(Product).filter(Product.id == item.product_id).first()
-                if product and product.cost_price:
-                    total_cost += float(product.cost_price) * item.quantity
-        
-        total_profit = total_revenue - total_cost
-        avg_order_value = total_revenue / total_orders if total_orders > 0 else 0
-        
-        return {
-            "totalRevenue": total_revenue,
-            "totalCost": total_cost,
-            "totalProfit": total_profit,
-            "totalOrders": total_orders,
-            "avgOrderValue": avg_order_value
-        }
-        
+
+
+@router.get("/current-month-stats")
+def get_current_month_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    """
+    Get detailed stats for the current month
+    """
+    try:
+        current_date = datetime.now()
+        current_month = current_date.strftime("%Y-%m")
+        return _get_monthly_stats_data(current_month, db, current_user)
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Monthly stats error: {str(e)}")
+        print(f"Current month stats error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching monthly stats: {str(e)}"
+            detail=f"Error fetching current month stats: {str(e)}"
         )
 
 
@@ -311,55 +303,6 @@ def get_top_products(
     """
     try:
         return _get_top_products_data(month, limit, db, current_user)
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Top products error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching top products: {str(e)}"
-        )
-        
-        # Build base query
-        query = db.query(
-            Product.name.label('product_name'),
-            func.sum(BillItem.quantity).label('total_quantity'),
-            func.sum(BillItem.total_price).label('total_revenue')
-        ).join(BillItem, Product.id == BillItem.product_id)\
-         .join(Bill, BillItem.bill_id == Bill.id)\
-         .filter(Bill.shop_id == shop.id)
-        
-        # Add month filter if specified
-        if month:
-            try:
-                year, month_num = map(int, month.split('-'))
-                query = query.filter(
-                    and_(
-                        extract('year', Bill.created_at) == year,
-                        extract('month', Bill.created_at) == month_num
-                    )
-                )
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid month format. Use YYYY-MM"
-                )
-        
-        # Group by product and order by total quantity
-        results = query.group_by(Product.id, Product.name)\
-                      .order_by(func.sum(BillItem.quantity).desc())\
-                      .limit(limit)\
-                      .all()
-        
-        return [
-            {
-                "product_name": result.product_name,
-                "total_quantity": int(result.total_quantity),
-                "total_revenue": float(result.total_revenue)
-            }
-            for result in results
-        ]
-        
     except HTTPException:
         raise
     except Exception as e:
