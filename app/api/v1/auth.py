@@ -9,7 +9,7 @@ from ...core.email import send_verification_email, send_password_reset_email
 from ...core.google_auth import google_oauth
 from ...crud.user import user as crud_user
 from ...schemas.user import (
-    User, UserCreate, LoginRequest, GoogleAuthRequest, 
+    User, UserCreate, UserSignup, LoginRequest, GoogleAuthRequest, 
     EmailVerificationRequest, EmailVerificationConfirm,
     ForgotPasswordRequest, ResetPasswordRequest
 )
@@ -161,7 +161,7 @@ async def register(
     background_tasks: BackgroundTasks
 ):
     """
-    Create new user and send verification email
+    Create new user and send verification email (legacy endpoint)
     """
     user = crud_user.get_by_email(db, email=user_in.email)
     if user:
@@ -184,6 +184,51 @@ async def register(
     return {
         "message": "User created successfully. Please check your email to verify your account.",
         "email": user.email
+    }
+
+
+@router.post("/signup", response_model=dict)
+async def signup(
+    *,
+    db: Session = Depends(get_db),
+    user_signup: UserSignup,
+    background_tasks: BackgroundTasks
+):
+    """
+    Enhanced signup with password confirmation and validation
+    """
+    # Check if user already exists
+    user = crud_user.get_by_email(db, email=user_signup.email)
+    if user:
+        raise HTTPException(
+            status_code=400,
+            detail="The user with this email already exists in the system."
+        )
+    
+    # Create UserCreate object from UserSignup (excluding confirm_password)
+    user_create = UserCreate(
+        email=user_signup.email,
+        full_name=user_signup.full_name,
+        password=user_signup.password,
+        is_active=True
+    )
+    
+    # Create user
+    user = crud_user.create(db, obj_in=user_create)
+    
+    # Generate verification token and send email
+    verification_token = create_email_verification_token(user.email)
+    background_tasks.add_task(
+        send_verification_email,
+        email=user.email,
+        token=verification_token,
+        user_name=user.full_name
+    )
+    
+    return {
+        "message": "Account created successfully! Please check your email to verify your account.",
+        "email": user.email,
+        "full_name": user.full_name
     }
 
 

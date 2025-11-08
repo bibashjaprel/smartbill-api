@@ -1,17 +1,18 @@
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from decimal import Decimal
+import uuid
 from ..models.bill import Bill, BillItem, UdharoTransaction
 from ..schemas.bill import BillCreate, BillUpdate, UdharoTransactionCreate
 from .base import CRUDBase
 
 
 class CRUDBill(CRUDBase[Bill, BillCreate, BillUpdate]):
-    def get_by_shop(self, db: Session, *, shop_id: str) -> List[Bill]:
+    def get_by_shop(self, db: Session, *, shop_id: uuid.UUID) -> List[Bill]:
         return db.query(Bill).filter(Bill.shop_id == shop_id).all()
 
     def get_by_shop_and_id(
-        self, db: Session, *, shop_id: str, bill_id: str
+        self, db: Session, *, shop_id: uuid.UUID, bill_id: uuid.UUID
     ) -> Optional[Bill]:
         return (
             db.query(Bill)
@@ -20,7 +21,7 @@ class CRUDBill(CRUDBase[Bill, BillCreate, BillUpdate]):
         )
 
     def get_by_shop_and_id_with_items(
-        self, db: Session, *, shop_id: str, bill_id: str
+        self, db: Session, *, shop_id: uuid.UUID, bill_id: uuid.UUID
     ) -> Optional[Bill]:
         """Get bill with items and customer details"""
         return (
@@ -34,7 +35,7 @@ class CRUDBill(CRUDBase[Bill, BillCreate, BillUpdate]):
         )
 
     def get_by_customer(
-        self, db: Session, *, customer_id: str
+        self, db: Session, *, customer_id: uuid.UUID
     ) -> List[Bill]:
         return db.query(Bill).filter(Bill.customer_id == customer_id).all()
 
@@ -59,7 +60,7 @@ class CRUDBill(CRUDBase[Bill, BillCreate, BillUpdate]):
         db.refresh(db_bill)
         return db_bill
 
-    def get_pending_bills(self, db: Session, *, shop_id: str) -> List[Bill]:
+    def get_pending_bills(self, db: Session, *, shop_id: uuid.UUID) -> List[Bill]:
         return (
             db.query(Bill)
             .filter(
@@ -69,7 +70,7 @@ class CRUDBill(CRUDBase[Bill, BillCreate, BillUpdate]):
             .all()
         )
         
-    def get_total_revenue(self, db: Session, *, shop_id: str) -> Decimal:
+    def get_total_revenue(self, db: Session, *, shop_id: uuid.UUID) -> Decimal:
         """
         Calculate the total revenue for a shop by summing all paid bills
         """
@@ -84,7 +85,7 @@ class CRUDBill(CRUDBase[Bill, BillCreate, BillUpdate]):
             print(f"Error in get_total_revenue: {str(e)}")
             return Decimal('0.0')
     
-    def get_recent_bills(self, db: Session, *, shop_id: str, limit: int = 5) -> List[Bill]:
+    def get_recent_bills(self, db: Session, *, shop_id: uuid.UUID, limit: int = 5) -> List[Bill]:
         """
         Get the most recent bills for a shop
         """
@@ -103,7 +104,7 @@ class CRUDBill(CRUDBase[Bill, BillCreate, BillUpdate]):
 
 class CRUDUdharoTransaction(CRUDBase[UdharoTransaction, UdharoTransactionCreate, None]):
     def get_by_customer(
-        self, db: Session, *, customer_id: str
+        self, db: Session, *, customer_id: uuid.UUID
     ) -> List[UdharoTransaction]:
         return (
             db.query(UdharoTransaction)

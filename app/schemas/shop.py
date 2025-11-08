@@ -13,7 +13,7 @@ class ShopBase(BaseModel):
 
 
 class ShopCreate(ShopBase):
-    pass
+    owner_id: Optional[uuid.UUID] = None  # Platform admins can specify owner
 
 
 class ShopUpdate(ShopBase):
@@ -23,8 +23,8 @@ class ShopUpdate(ShopBase):
 class ShopInDBBase(ShopBase):
     id: uuid.UUID
     owner_id: uuid.UUID
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

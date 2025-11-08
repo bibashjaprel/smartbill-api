@@ -16,10 +16,11 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
     def create(self, db: Session, *, obj_in: UserCreate) -> User:
         db_obj = User(
             email=obj_in.email,
-            password_hash=get_password_hash(obj_in.password),
+            password=get_password_hash(obj_in.password),
             full_name=obj_in.full_name,
             is_active=obj_in.is_active,
             is_verified=False,  # Email verification required
+            role="shop_owner",  # Default role - allows creating shops
         )
         db.add(db_obj)
         db.commit()
@@ -35,7 +36,8 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             profile_picture=profile_picture,
             is_active=True,
             is_verified=True,  # Google accounts are pre-verified
-            password_hash=None,  # No password for OAuth users
+            password=None,  # No password for OAuth users
+            role="shop_owner",  # Default role - allows creating shops
         )
         db.add(db_obj)
         db.commit()
@@ -54,17 +56,16 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         update_data = obj_in.dict(exclude_unset=True)
         if "password" in update_data:
             hashed_password = get_password_hash(update_data["password"])
-            del update_data["password"]
-            update_data["password_hash"] = hashed_password
+            update_data["password"] = hashed_password
         return super().update(db, db_obj=db_obj, obj_in=update_data)
 
     def authenticate(self, db: Session, *, email: str, password: str) -> Optional[User]:
         user = self.get_by_email(db, email=email)
         if not user:
             return None
-        if not user.password_hash:  # OAuth user trying to login with password
+        if not user.password:  # OAuth user trying to login with password
             return None
-        if not verify_password(password, user.password_hash):
+        if not verify_password(password, user.password):
             return None
         return user
 
@@ -74,12 +75,14 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
     def is_verified(self, user: User) -> bool:
         return user.is_verified
 
-    def is_admin(self, user: User) -> bool:
-        return user.is_admin
+    def has_role(self, user: User, required_role: str) -> bool:
+        """Check if user has sufficient role permissions"""
+        from ..schemas.user import UserRole
+        return UserRole.can_access(user.role, required_role)
 
     def reset_password(self, db: Session, *, user: User, new_password: str) -> User:
         """Reset user password"""
-        user.password_hash = get_password_hash(new_password)
+        user.password = get_password_hash(new_password)
         db.add(user)
         db.commit()
         db.refresh(user)

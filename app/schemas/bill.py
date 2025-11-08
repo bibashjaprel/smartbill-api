@@ -6,7 +6,7 @@ import uuid
 
 
 class BillItemBase(BaseModel):
-    product_id: str  # Changed from uuid.UUID to str
+    product_id: uuid.UUID
     quantity: int
     unit_price: Decimal
     total_price: Decimal
@@ -36,7 +36,7 @@ class BillItemWithProduct(BillItemInDBBase):
 
 class BillBase(BaseModel):
     bill_number: str
-    customer_id: Optional[str] = None  # Changed from uuid.UUID to str
+    customer_id: Optional[uuid.UUID] = None
     total_amount: Decimal
     paid_amount: Optional[Decimal] = Decimal('0.00')
     payment_method: Optional[str] = 'cash'
@@ -44,7 +44,7 @@ class BillBase(BaseModel):
 
 
 class BillCreate(BillBase):
-    shop_id: Optional[str] = None  # Changed from uuid.UUID to str
+    shop_id: Optional[uuid.UUID] = None
     items: List[BillItemCreate]
 
 
@@ -81,8 +81,8 @@ class UdharoTransactionBase(BaseModel):
 
 
 class UdharoTransactionCreate(UdharoTransactionBase):
-    customer_id: str  # Changed from uuid.UUID to str
-    bill_id: Optional[str] = None  # Changed from uuid.UUID to str
+    customer_id: uuid.UUID
+    bill_id: Optional[uuid.UUID] = None
 
 
 class UdharoTransactionInDBBase(UdharoTransactionBase):

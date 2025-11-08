@@ -2,6 +2,7 @@ from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import uuid
 from ..core.database import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
@@ -22,6 +23,13 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self.model = model
 
     def get(self, db: Session, id: Any) -> Optional[ModelType]:
+        # Convert string to UUID if necessary
+        if isinstance(id, str):
+            try:
+                id = uuid.UUID(id)
+            except ValueError:
+                return None
+        
         return db.query(self.model).filter(self.model.id == id).first()
 
     def get_multi(
@@ -31,7 +39,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     def create(self, db: Session, *, obj_in: CreateSchemaType) -> ModelType:
         obj_in_data = jsonable_encoder(obj_in)
-        db_obj = self.model(**obj_in_data)  # type: ignore
+        db_obj = self.model(**obj_in_data)
         db.add(db_obj)
         db.commit()
         db.refresh(db_obj)

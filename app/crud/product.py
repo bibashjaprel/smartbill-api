@@ -1,16 +1,17 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
+import uuid
 from ..models.product import Product
 from ..schemas.product import ProductCreate, ProductUpdate
 from .base import CRUDBase
 
 
 class CRUDProduct(CRUDBase[Product, ProductCreate, ProductUpdate]):
-    def get_by_shop(self, db: Session, *, shop_id: str) -> List[Product]:
+    def get_by_shop(self, db: Session, *, shop_id: uuid.UUID) -> List[Product]:
         return db.query(Product).filter(Product.shop_id == shop_id).all()
 
     def get_by_shop_and_id(
-        self, db: Session, *, shop_id: str, product_id: str
+        self, db: Session, *, shop_id: uuid.UUID, product_id: uuid.UUID
     ) -> Optional[Product]:
         return (
             db.query(Product)
@@ -19,7 +20,7 @@ class CRUDProduct(CRUDBase[Product, ProductCreate, ProductUpdate]):
         )
 
     def search_by_name_or_category(
-        self, db: Session, *, shop_id: str, query: str
+        self, db: Session, *, shop_id: uuid.UUID, query: str
     ) -> List[Product]:
         return (
             db.query(Product)
@@ -31,7 +32,7 @@ class CRUDProduct(CRUDBase[Product, ProductCreate, ProductUpdate]):
         )
 
     def get_low_stock_products(
-        self, db: Session, *, shop_id: str, threshold: int = 10, limit: int = None
+        self, db: Session, *, shop_id: uuid.UUID, threshold: int = 10, limit: int = None
     ) -> List[Product]:
         try:
             query = (
@@ -53,7 +54,7 @@ class CRUDProduct(CRUDBase[Product, ProductCreate, ProductUpdate]):
             return []
 
     def update_stock(
-        self, db: Session, *, product_id: str, quantity_change: int
+        self, db: Session, *, product_id: uuid.UUID, quantity_change: int
     ) -> Optional[Product]:
         product = db.query(Product).filter(Product.id == product_id).first()
         if product:

@@ -26,6 +26,10 @@ class ProductUpdate(ProductBase):
     price: Optional[Decimal] = None
 
 
+class ProductStockUpdate(BaseModel):
+    stock: int = Field(..., ge=0, description="New stock quantity (must be non-negative)")
+
+
 class ProductInDBBase(ProductBase):
     id: uuid.UUID
     shop_id: uuid.UUID

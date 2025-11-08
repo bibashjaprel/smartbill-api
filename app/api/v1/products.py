@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from ...core.database import get_db
 from ...crud.product import product as crud_product
-from ...schemas.product import Product, ProductCreate, ProductUpdate
+from ...schemas.product import Product, ProductCreate, ProductUpdate, ProductStockUpdate
 from ...api.deps import get_current_active_user
 from ...models.user import User
 from ...utils.common import get_user_shop_or_404, validate_resource_id
@@ -176,7 +176,7 @@ def update_product_stock_current_shop(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     product_id: str,
-    stock_data: dict
+    stock_data: ProductStockUpdate
 ):
     """
     Update product stock for current shop
@@ -186,14 +186,7 @@ def update_product_stock_current_shop(
         product = get_product_or_404(db, shop, product_id)
         
         # Update stock
-        new_stock = stock_data.get("stock")
-        if new_stock is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Stock value is required"
-            )
-        
-        product_update = ProductUpdate(stock=new_stock)
+        product_update = ProductUpdate(stock_quantity=stock_data.stock)
         updated_product = crud_product.update(db, db_obj=product, obj_in=product_update)
         
         return convert_product_for_frontend(updated_product)
@@ -201,7 +194,6 @@ def update_product_stock_current_shop(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error updating product stock: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating product stock: {str(e)}"

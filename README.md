@@ -58,7 +58,8 @@ A production-ready FastAPI backend for a comprehensive smart billing system with
 ## 🛠️ Tech Stack
 
 - **Framework**: FastAPI 0.104+
-- **Database**: MySQL 8.0+
+- **Database**: PostgreSQL 12+
+- Node.js (optional, for development)
 - **Authentication**: JWT + Google OAuth 2.0
 - **ORM**: SQLAlchemy 2.0
 - **Email**: aiosmtplib + Jinja2 templates
@@ -71,8 +72,8 @@ A production-ready FastAPI backend for a comprehensive smart billing system with
 
 ### Prerequisites
 
-- Python 3.8+
-- MySQL 8.0+
+- Python 3.10+
+- PostgreSQL 12+
 - Git
 
 ### Installation
@@ -100,7 +101,7 @@ A production-ready FastAPI backend for a comprehensive smart billing system with
    Create `.env` file with your configuration:
    ```env
    # Database
-   DATABASE_URL=mysql+pymysql://root:@localhost:3306/billsmart_db
+   DATABASE_URL=postgresql://postgres:root@localhost:5432/billsmart_db
    
    # Security
    SECRET_KEY=your-super-secret-key-change-this-in-production
@@ -316,7 +317,7 @@ Use the interactive API documentation:
 
 ```bash
 # Test with production-like settings
-DATABASE_URL=mysql+pymysql://user:pass@prod-db:3306/billsmart \
+DATABASE_URL=postgresql://user:pass@prod-db:5432/billsmart \
 SECRET_KEY=production-secret-key \
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
@@ -419,7 +420,7 @@ smartbill-api/
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes | - | MySQL connection string |
+| `DATABASE_URL` | Yes | - | PostgreSQL connection string |
 | `SECRET_KEY` | Yes | - | JWT secret key |
 | `ALGORITHM` | No | `HS256` | JWT algorithm |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `30` | Token expiration time |
@@ -435,9 +436,9 @@ smartbill-api/
 
 ### Database Configuration
 
-The application uses MySQL with the following configuration:
-- **Engine**: MySQL 8.0+
-- **Driver**: PyMySQL
+The application uses PostgreSQL with the following configuration:
+- **Engine**: PostgreSQL 12+
+- **Driver**: psycopg2-binary
 - **Connection Pool**: SQLAlchemy connection pooling
 - **Migrations**: Direct table creation (no Alembic)
 
@@ -456,7 +457,7 @@ The application uses MySQL with the following configuration:
 1. **Environment Setup**
    ```bash
    # Set production environment variables
-   export DATABASE_URL=mysql+pymysql://user:pass@prod-db:3306/billsmart
+   export DATABASE_URL=postgresql://user:pass@prod-db:5432/billsmart
    export SECRET_KEY=your-production-secret-key
    export FRONTEND_URL=https://your-frontend-domain.com
    ```
@@ -614,9 +615,9 @@ We welcome contributions to BillSmart API! Here's how to get started:
 
 #### Database Connection Errors
 ```bash
-# Error: Can't connect to MySQL
-# Solution: Check MySQL service and credentials
-mysql -u root -p  # Test connection
+# Error: Can't connect to PostgreSQL
+# Solution: Check PostgreSQL service and credentials
+psql -U postgres  # Test connection
 ```
 
 #### Import Errors

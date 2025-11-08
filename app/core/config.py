@@ -7,8 +7,11 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
+    # CORS
+    BACKEND_CORS_ORIGINS: List[str] = ["*"]  # Allow all origins for development
+    
     # Database
-    DATABASE_URL: str = "mysql+pymysql://root:@localhost:3306/billsmart_db"
+    DATABASE_URL: str = "postgresql+psycopg2://postgres:root@localhost:5432/postgres"
     
     # Security
     SECRET_KEY: str = "your-super-secret-key-change-this-in-production"
