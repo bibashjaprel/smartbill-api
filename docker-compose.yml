@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    container_name: smartbill-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: billsmart_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  api:
+    build: .
+    container_name: smartbill-api
+    restart: always
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://postgres:root@db:5432/billsmart_db
+      SECRET_KEY: your-secret-key
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:
