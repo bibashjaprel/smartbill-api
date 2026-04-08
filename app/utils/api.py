@@ -210,6 +210,7 @@ def convert_product_for_frontend(product: Product) -> Dict[str, Any]:
     }
 
 
+# Convert and sort products for quick frontend display.(QuickSort sorting algorithm)
 def prepare_products_for_frontend(
     products: List[Product],
     low_stock_threshold: int = 10
