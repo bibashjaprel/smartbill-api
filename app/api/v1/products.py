@@ -3,11 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from ...core.database import get_db
 from ...crud.product import product as crud_product
-from ...schemas.product import Product, ProductCreate, ProductUpdate, ProductStockUpdate
+from ...schemas.product import ProductCreate, ProductUpdate, ProductStockUpdate
 from ...api.deps import get_current_active_user
 from ...models.user import User
-from ...utils.common import get_user_shop_or_404, validate_resource_id
-from ...utils.api import get_product_or_404, convert_product_for_frontend
+from ...utils.common import get_user_shop_or_404
+from ...utils.api import get_product_or_404, prepare_products_for_frontend, convert_product_for_frontend
 
 router = APIRouter()
 
@@ -39,8 +39,8 @@ def read_products_current_shop(
         else:
             products = crud_product.get_by_shop(db, shop_id=str(shop.id))
         
-        # Convert products to include current_stock
-        converted_products = [convert_product_for_frontend(product) for product in products]
+        # Convert products to a frontend-friendly shape and sort them for display
+        converted_products = prepare_products_for_frontend(products, low_stock_threshold=10)
         return converted_products[skip:skip + limit]
     
     except HTTPException:

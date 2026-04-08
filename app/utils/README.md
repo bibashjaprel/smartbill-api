@@ -19,6 +19,7 @@ Contains API-specific utility functions:
 - **`validate_shop_ownership()`**: Validates shop ownership permissions
 - **`apply_search_filter()`**: Applies search filters to SQLAlchemy queries
 - **`convert_product_for_frontend()`**: Converts product data to frontend-compatible format
+- **`prepare_products_for_frontend()`**: Converts and sorts products for fast UI display
 - **`convert_customer_for_frontend()`**: Converts customer data to frontend-compatible format
 - **`format_currency()`**: Formats currency amounts with proper symbols
 - **`calculate_profit_margin()`**: Calculates profit margins for products
@@ -41,12 +42,19 @@ def my_endpoint(db: Session, current_user: User):
 
 ### Product Data Conversion
 ```python
-from app.utils.api import convert_product_for_frontend
+from app.utils.api import prepare_products_for_frontend
 
 def get_products(db: Session, shop: Shop):
     products = crud_product.get_by_shop(db, shop_id=str(shop.id))
-    return [convert_product_for_frontend(p) for p in products]
+    return prepare_products_for_frontend(products)
 ```
+
+### Frontend Display Rule
+The product list uses a simple display order:
+1. Out of stock products first
+2. Low stock products next
+3. Healthy stock products last
+4. Alphabetical sorting inside each group
 
 ### Search Filtering
 ```python

@@ -210,6 +210,48 @@ def convert_product_for_frontend(product: Product) -> Dict[str, Any]:
     }
 
 
+def prepare_products_for_frontend(
+    products: List[Product],
+    low_stock_threshold: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    Convert and sort products for quick frontend display.
+
+    The display order is:
+    1. Out of stock products
+    2. Low stock products
+    3. Healthy stock products
+    4. Alphabetical by name inside each group
+    """
+    stock_rank = {
+        "out_of_stock": 0,
+        "low_stock": 1,
+        "healthy": 2,
+    }
+
+    converted_products: List[Dict[str, Any]] = []
+    for product in products:
+        product_data = convert_product_for_frontend(product)
+        min_stock_level = product_data["min_stock_level"] or 0
+        should_reorder = product_data["stock"] <= max(low_stock_threshold, min_stock_level)
+
+        if product_data["stock"] == 0:
+            stock_status = "out_of_stock"
+        elif should_reorder:
+            stock_status = "low_stock"
+        else:
+            stock_status = "healthy"
+
+        product_data["stock_status"] = stock_status
+        product_data["needs_reorder"] = should_reorder
+        converted_products.append(product_data)
+
+    return sorted(
+        converted_products,
+        key=lambda item: (stock_rank[item["stock_status"]], item["name"].lower())
+    )
+
+
 def convert_customer_for_frontend(customer: Customer) -> Dict[str, Any]:
     """
     Convert a customer object to match frontend expectations.

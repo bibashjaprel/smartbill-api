@@ -33,7 +33,7 @@ test_user = User(
 )
 
 try:
-    session.add(test_user)
+    session.add(test_user)  
     session.commit()
     print("Test user created successfully!")
 except Exception as e:

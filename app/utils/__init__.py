@@ -26,6 +26,7 @@ from .api import (
     validate_shop_ownership,
     apply_search_filter,
     convert_product_for_frontend,
+    prepare_products_for_frontend,
     convert_customer_for_frontend,
     format_currency,
     calculate_profit_margin
@@ -52,6 +53,7 @@ __all__ = [
     'validate_shop_ownership',
     'apply_search_filter',
     'convert_product_for_frontend',
+    'prepare_products_for_frontend',
     'convert_customer_for_frontend',
     'format_currency',
     'calculate_profit_margin',
