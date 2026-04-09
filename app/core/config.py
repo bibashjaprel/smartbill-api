@@ -1,10 +1,12 @@
 from typing import List, Optional
 
-from pydantic import model_validator
-from pydantic_settings import BaseSettings
+from pydantic import Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+
     PROJECT_NAME: str = "BillSmart API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
@@ -13,11 +15,11 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: List[str] = ["*"]  # Allow all origins for development
     
     # Database
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "root"
-    POSTGRES_HOST: str = "localhost"
-    POSTGRES_PORT: int = 5432
-    POSTGRES_DB: str = "postgres"
+    POSTGRES_USER: str = Field(default="postgres", validation_alias="POSTGRES_USER")
+    POSTGRES_PASSWORD: str = Field(default="root", validation_alias="POSTGRES_PASSWORD")
+    POSTGRES_HOST: str = Field(default="localhost", validation_alias="POSTGRES_HOST")
+    POSTGRES_PORT: int = Field(default=5432, validation_alias="POSTGRES_PORT")
+    POSTGRES_DB: str = Field(default="postgres", validation_alias="POSTGRES_DB")
     DATABASE_URL: Optional[str] = None
     
     # Security
@@ -69,10 +71,6 @@ class Settings(BaseSettings):
                 f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
             )
         return self
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 settings = Settings()
