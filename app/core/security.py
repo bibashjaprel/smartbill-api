@@ -60,11 +60,15 @@ def verify_password_reset_token(token: str) -> Optional[str]:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    # Truncate to 72 bytes (bcrypt limit) to prevent ValueError
+    truncated_password = plain_password[:72]
+    return pwd_context.verify(truncated_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    # Truncate to 72 bytes (bcrypt limit) before hashing
+    truncated_password = password[:72]
+    return pwd_context.hash(truncated_password)
 
 
 def verify_token(token: str) -> Optional[str]:
