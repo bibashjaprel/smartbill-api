@@ -1,5 +1,7 @@
-from pydantic_settings import BaseSettings
 from typing import List, Optional
+
+from pydantic import model_validator
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -11,7 +13,12 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: List[str] = ["*"]  # Allow all origins for development
     
     # Database
-    DATABASE_URL: str = "postgresql+psycopg2://postgres:root@localhost:5432/postgres"
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "root"
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = "postgres"
+    DATABASE_URL: Optional[str] = None
     
     # Security
     SECRET_KEY: str = "your-super-secret-key-change-this-in-production"
@@ -53,6 +60,15 @@ class Settings(BaseSettings):
     
     # Development
     DEBUG: bool = False
+
+    @model_validator(mode="after")
+    def build_database_url(self):
+        if not self.DATABASE_URL:
+            self.DATABASE_URL = (
+                f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+                f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            )
+        return self
     
     class Config:
         env_file = ".env"

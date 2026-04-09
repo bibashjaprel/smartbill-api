@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
 # Create a new engine instance
-DATABASE_URL = "postgresql+psycopg2://postgres:root@localhost:5432/postgres"
+DATABASE_URL = settings.DATABASE_URL
 engine = create_engine(DATABASE_URL, echo=True)
 
 # Import all models so they're registered with Base.metadata
