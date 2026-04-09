@@ -30,14 +30,14 @@ def read_products_current_shop(
         
         if low_stock:
             products = crud_product.get_low_stock_products(
-                db, shop_id=str(shop.id), threshold=10
+                db, shop_id=shop.id, threshold=10
             )
         elif search:
             products = crud_product.search_by_name_or_category(
-                db, shop_id=str(shop.id), query=search
+                db, shop_id=shop.id, query=search
             )
         else:
-            products = crud_product.get_by_shop(db, shop_id=str(shop.id))
+            products = crud_product.get_by_shop(db, shop_id=shop.id)
         
         # Convert products to a frontend-friendly shape and sort them for display
         converted_products = prepare_products_for_frontend(products, low_stock_threshold=10)
@@ -67,7 +67,7 @@ def create_product_current_shop(
         shop = get_user_shop_or_404(db, current_user)
         
         # Set the shop_id
-        product_in.shop_id = str(shop.id)
+        product_in.shop_id = shop.id
         
         # Create the product
         product = crud_product.create(db, obj_in=product_in)

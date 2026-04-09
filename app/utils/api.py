@@ -45,7 +45,7 @@ def get_customer_or_404(
     shop = get_user_shop_or_404(db, current_user)
     
     customer = crud_customer.get_by_shop_and_id(
-        db, shop_id=str(shop.id), customer_id=customer_id
+        db, shop_id=shop.id, customer_id=customer_id
     )
     if not customer:
         raise HTTPException(
@@ -77,7 +77,7 @@ def get_product_or_404(
     validate_resource_id(product_id, "product")
     
     product = crud_product.get_by_shop_and_id(
-        db, shop_id=str(shop.id), product_id=product_id
+        db, shop_id=shop.id, product_id=product_id
     )
     if not product:
         raise HTTPException(
