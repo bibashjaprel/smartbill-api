@@ -18,6 +18,14 @@ from ...api.deps import get_current_active_user
 router = APIRouter()
 
 
+@router.get("/me", response_model=User)
+def read_auth_me(
+    current_user: User = Depends(get_current_active_user)
+):
+    """Return the authenticated user profile for frontend session checks."""
+    return current_user
+
+
 @router.post("/login")
 def login(
     db: Session = Depends(get_db),

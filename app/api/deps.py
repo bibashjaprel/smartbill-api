@@ -1,6 +1,6 @@
-from typing import Generator
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer
+from typing import Generator, Optional
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from ..core.database import get_db
 from ..core.security import verify_token
@@ -9,14 +9,43 @@ from ..crud.shop import shop as crud_shop
 from ..models.user import User
 from ..models.shop import Shop
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
+
+
+def _normalize_token(raw_token: Optional[str]) -> Optional[str]:
+    if not raw_token:
+        return None
+
+    token = raw_token.strip().strip('"').strip("'")
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+
+    return token or None
 
 
 def get_current_user(
+    request: Request,
     db: Session = Depends(get_db),
-    token: str = Depends(security)
+    token: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> User:
-    user_id = verify_token(token.credentials)
+    raw_token = token.credentials if token else None
+
+    # Fallback for clients that send a non-standard Authorization header
+    # (for example, raw token without "Bearer " prefix).
+    if not raw_token:
+        raw_token = request.headers.get("authorization")
+
+    if not raw_token:
+        raw_token = request.cookies.get("access_token") or request.cookies.get("token")
+
+    normalized_token = _normalize_token(raw_token)
+    if not normalized_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+    user_id = verify_token(normalized_token)
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
