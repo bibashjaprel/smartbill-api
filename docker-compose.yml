@@ -6,9 +6,9 @@ services:
     container_name: smartbill-db
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: root
-      POSTGRES_DB: billsmart_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
+      POSTGRES_DB: ${POSTGRES_DB:-billsmart_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -21,8 +21,8 @@ services:
     depends_on:
       - db
     environment:
-      DATABASE_URL: postgresql://postgres:root@db:5432/billsmart_db
-      SECRET_KEY: your-secret-key
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-root}@db:5432/${POSTGRES_DB:-billsmart_db}
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key}
     ports:
       - "8000:8000"
 
