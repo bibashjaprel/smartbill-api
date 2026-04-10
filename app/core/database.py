@@ -1,6 +1,6 @@
 from typing import Generator
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base, scoped_session
 from .config import settings
 
 # Create engine with updated configuration for SQLAlchemy 2.0
@@ -47,18 +47,19 @@ class GUID(TypeDecorator):
 
 engine = create_engine(
     settings.DATABASE_URL,
-    # Connection pool settings
     pool_pre_ping=True,
-    pool_recycle=300
+    pool_recycle=300,
 )
 
 # Create session factory
-SessionLocal = sessionmaker(
+session_factory = sessionmaker(
     bind=engine,
     autoflush=False,
     autocommit=False,
-    expire_on_commit=False
+    expire_on_commit=False,
 )
+
+SessionLocal = scoped_session(session_factory)
 
 # New style declarative base for SQLAlchemy 2.0
 Base = declarative_base()
@@ -69,6 +70,7 @@ def get_db() -> Generator:
         yield db
     finally:
         db.close()
+        SessionLocal.remove()
 
 
 def init_db():

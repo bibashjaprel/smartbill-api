@@ -4,9 +4,12 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
+import logging
 import traceback
 from .core.config import settings
 from .api.v1 import auth, users, shops, customers, products, bills, admin, dashboard, udharo, reports
+
+logger = logging.getLogger(__name__)
 
 
 # Custom middleware to ensure CORS headers are added to error responses
@@ -45,6 +48,11 @@ app = FastAPI(
     version=settings.VERSION,
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
+
+
+@app.on_event("startup")
+async def log_database_connection_info() -> None:
+    logger.info("Using DATABASE_URL: %s", settings.masked_database_url())
 
 # Add custom error handling middleware first
 app.add_middleware(CORSMiddlewareWithErrorHandling)

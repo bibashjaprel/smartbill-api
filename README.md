@@ -101,7 +101,11 @@ A production-ready FastAPI backend for a comprehensive smart billing system with
    Create `.env` file with your configuration:
    ```env
    # Database
-   DATABASE_URL=postgresql://postgres:root@localhost:5432/billsmart_db
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=your-db-password
+   POSTGRES_HOST=localhost
+   POSTGRES_PORT=5432
+   POSTGRES_DB=billsmart_db
    
    # Security
    SECRET_KEY=your-super-secret-key-change-this-in-production
@@ -317,7 +321,11 @@ Use the interactive API documentation:
 
 ```bash
 # Test with production-like settings
-DATABASE_URL=postgresql://user:pass@prod-db:5432/billsmart \
+POSTGRES_USER=user \
+POSTGRES_PASSWORD=pass \
+POSTGRES_HOST=prod-db \
+POSTGRES_PORT=5432 \
+POSTGRES_DB=billsmart \
 SECRET_KEY=production-secret-key \
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
@@ -457,7 +465,11 @@ The application uses PostgreSQL with the following configuration:
 1. **Environment Setup**
    ```bash
    # Set production environment variables
-   export DATABASE_URL=postgresql://user:pass@prod-db:5432/billsmart
+   export POSTGRES_USER=user
+   export POSTGRES_PASSWORD=pass
+   export POSTGRES_HOST=prod-db
+   export POSTGRES_PORT=5432
+   export POSTGRES_DB=billsmart
    export SECRET_KEY=your-production-secret-key
    export FRONTEND_URL=https://your-frontend-domain.com
    ```

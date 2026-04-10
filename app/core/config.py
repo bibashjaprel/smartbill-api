@@ -1,76 +1,74 @@
+import os
 from typing import List, Optional
+from urllib.parse import quote_plus
 
-from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+def _require_env(name: str) -> str:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        raise ValueError(f"Missing required environment variable: {name}")
+    return value
 
-    PROJECT_NAME: str = "BillSmart API"
-    VERSION: str = "1.0.0"
-    API_V1_STR: str = "/api/v1"
-    
-    # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["*"]  # Allow all origins for development
-    
-    # Database
-    POSTGRES_USER: str = Field(default="postgres", validation_alias="POSTGRES_USER")
-    POSTGRES_PASSWORD: str = Field(default="root", validation_alias="POSTGRES_PASSWORD")
-    POSTGRES_HOST: str = Field(default="localhost", validation_alias="POSTGRES_HOST")
-    POSTGRES_PORT: int = Field(default=5432, validation_alias="POSTGRES_PORT")
-    POSTGRES_DB: str = Field(default="postgres", validation_alias="POSTGRES_DB")
-    DATABASE_URL: Optional[str] = None
-    
-    # Security
-    SECRET_KEY: str = "your-super-secret-key-change-this-in-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    ALGORITHM: str = "HS256"
-    
-    # Google OAuth
-    GOOGLE_CLIENT_ID: Optional[str] = None
-    GOOGLE_CLIENT_SECRET: Optional[str] = None
-    
-    # Email settings
-    SMTP_TLS: bool = True
-    SMTP_PORT: int = 587
-    SMTP_HOST: Optional[str] = None
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAILS_FROM_EMAIL: Optional[str] = None
-    EMAILS_FROM_NAME: Optional[str] = None
-    
-    # Frontend URL for email verification links
-    FRONTEND_URL: str = "http://localhost:3000"
-    
-    # Email verification
-    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
-    
-    # Password reset
-    PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 2
-    
-    # CORS
-    BACKEND_CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:5173",  # Vite default port
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "https://billsmart.app",   # Add your production domains here
-        "*"  # Allow all origins in development (remove in production)
-    ]
-    
-    # Development
-    DEBUG: bool = False
 
-    @model_validator(mode="after")
-    def build_database_url(self):
-        if not self.DATABASE_URL:
-            self.DATABASE_URL = (
-                f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-                f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-            )
-        return self
+class Settings:
+    def __init__(self) -> None:
+        self.PROJECT_NAME: str = os.getenv("PROJECT_NAME", "BillSmart API")
+        self.VERSION: str = os.getenv("VERSION", "1.0.0")
+        self.API_V1_STR: str = os.getenv("API_V1_STR", "/api/v1")
+
+        cors_origins_raw = os.getenv(
+            "BACKEND_CORS_ORIGINS",
+            "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173,https://billsmart.app,*",
+        )
+        self.BACKEND_CORS_ORIGINS: List[str] = [
+            origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()
+        ]
+
+        self.POSTGRES_USER: str = _require_env("POSTGRES_USER")
+        self.POSTGRES_PASSWORD: str = _require_env("POSTGRES_PASSWORD")
+        self.POSTGRES_HOST: str = _require_env("POSTGRES_HOST")
+        self.POSTGRES_PORT: int = int(_require_env("POSTGRES_PORT"))
+        self.POSTGRES_DB: str = _require_env("POSTGRES_DB")
+
+        password_escaped = quote_plus(self.POSTGRES_PASSWORD)
+        self.DATABASE_URL: str = (
+            f"postgresql://{self.POSTGRES_USER}:{password_escaped}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
+        self.SECRET_KEY: str = os.getenv("SECRET_KEY", "your-super-secret-key-change-this-in-production")
+        self.ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+        self.ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
+
+        self.GOOGLE_CLIENT_ID: Optional[str] = os.getenv("GOOGLE_CLIENT_ID")
+        self.GOOGLE_CLIENT_SECRET: Optional[str] = os.getenv("GOOGLE_CLIENT_SECRET")
+
+        self.SMTP_TLS: bool = os.getenv("SMTP_TLS", "true").lower() in {"1", "true", "yes", "on"}
+        self.SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+        self.SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
+        self.SMTP_USER: Optional[str] = os.getenv("SMTP_USER")
+        self.SMTP_PASSWORD: Optional[str] = os.getenv("SMTP_PASSWORD")
+        self.EMAILS_FROM_EMAIL: Optional[str] = os.getenv("EMAILS_FROM_EMAIL")
+        self.EMAILS_FROM_NAME: Optional[str] = os.getenv("EMAILS_FROM_NAME")
+
+        self.FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        self.EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = int(
+            os.getenv("EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS", "24")
+        )
+        self.PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = int(
+            os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_HOURS", "2")
+        )
+        self.DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"1", "true", "yes", "on"}
+
+    def masked_database_url(self) -> str:
+        return (
+            f"postgresql://{self.POSTGRES_USER}:***"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
 
 
 settings = Settings()

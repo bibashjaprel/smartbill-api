@@ -1,10 +1,4 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from app.core.config import settings
-
-# Create a new engine instance
-DATABASE_URL = settings.DATABASE_URL
-engine = create_engine(DATABASE_URL, echo=True)
+from app.core.database import engine, SessionLocal
 
 # Import all models so they're registered with Base.metadata
 from app.models import user, shop, product, customer, bill
@@ -16,8 +10,7 @@ Base.metadata.create_all(bind=engine)
 print("Database tables created successfully!")
 
 # Create a test user
-Session = sessionmaker(bind=engine)
-session = Session()
+session = SessionLocal()
 
 from app.models.user import User
 from app.core.security import get_password_hash
