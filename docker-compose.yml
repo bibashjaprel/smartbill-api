@@ -11,6 +11,12 @@ services:
     container_name: smartbill-db
     restart: always
     environment: *postgres-env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -21,12 +27,13 @@ services:
     container_name: smartbill-api
     restart: always
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     env_file:
       - .env
     environment:
       <<: *postgres-env
-      POSTGRES_HOST: db
+      POSTGRES_HOST: smartbill-db
       SECRET_KEY: ${SECRET_KEY:-your-secret-key}
     ports:
       - "8000:8000"
