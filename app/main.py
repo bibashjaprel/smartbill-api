@@ -7,6 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 import traceback
 from .core.config import settings
+from .core.database import init_db
 from .api.v1 import auth, users, shops, customers, products, bills, admin, dashboard, udharo, reports
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ app = FastAPI(
 @app.on_event("startup")
 async def log_database_connection_info() -> None:
     logger.info("Using DATABASE_URL: %s", settings.masked_database_url())
+    init_db()
 
 # Add custom error handling middleware first
 app.add_middleware(CORSMiddlewareWithErrorHandling)
