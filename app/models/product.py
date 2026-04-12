@@ -26,3 +26,4 @@ class Product(Base):
     # Relationships
     shop = relationship("Shop", back_populates="products")
     bill_items = relationship("BillItem", back_populates="product")
+    stock_movements = relationship("StockMovement", back_populates="product", cascade="all, delete-orphan")

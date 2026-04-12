@@ -75,6 +75,9 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
     def is_verified(self, user: User) -> bool:
         return user.is_verified
 
+    def is_admin(self, user: User) -> bool:
+        return user.role in {"super_admin", "platform_admin", "admin"}
+
     def has_role(self, user: User, required_role: str) -> bool:
         """Check if user has sufficient role permissions"""
         from ..schemas.user import UserRole

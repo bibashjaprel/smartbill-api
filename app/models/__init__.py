@@ -4,6 +4,8 @@ from .shop import Shop
 from .customer import Customer
 from .product import Product
 from .bill import Bill, BillItem, UdharoTransaction
+from .stock_movement import StockMovement
+from .user_shop_role import UserShopRole
 
 __all__ = [
     "User",
@@ -12,5 +14,7 @@ __all__ = [
     "Product",
     "Bill",
     "BillItem",
-    "UdharoTransaction"
+    "UdharoTransaction",
+    "StockMovement",
+    "UserShopRole",
 ]

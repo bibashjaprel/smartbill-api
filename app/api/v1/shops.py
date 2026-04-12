@@ -4,8 +4,10 @@ from sqlalchemy.orm import Session
 from ...core.database import get_db
 from ...crud.shop import shop as crud_shop
 from ...crud.user import user as crud_user
+from ...crud.user_shop_role import user_shop_role as crud_user_shop_role
 from ...schemas.shop import Shop, ShopCreate, ShopUpdate, ShopWithDetails
 from ...schemas.user import UserRole, UserShop
+from ...schemas.user_shop_role import UserShopRoleCreate, UserShopRoleUpdate, UserShopRoleInDB
 from ...api.deps import get_current_active_user, get_user_shop
 from ...models.user import User
 
@@ -31,12 +33,8 @@ def read_shops(
             # Shop owners see their owned shops
             shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
         else:
-            # Other roles see only their current shop
-            if current_user.shop_id:
-                shop = crud_shop.get(db, id=current_user.shop_id)
-                shops = [shop] if shop else []
-            else:
-                shops = []
+            # Non-platform roles fallback to owned shops (or none)
+            shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
         
         return shops
     except Exception as e:
@@ -55,15 +53,10 @@ def get_current_shop(
     Get the current user's active/current shop
     """
     try:
-        if not current_user.shop_id:
+        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
+        if not shops:
             return None
-        
-        shop = crud_shop.get(db, id=current_user.shop_id)
-        if not shop:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Current shop not found"
-            )
+        shop = shops[0]
         
         # Verify user has access to this shop
         if not UserRole.is_platform_role(current_user.role):
@@ -117,12 +110,10 @@ def set_current_shop(
                     detail="Access denied to this shop"
                 )
         
-        # Update user's current shop
-        current_user.shop_id = shop_id
-        db.add(current_user)
-        db.commit()
-        
-        return {"message": f"Current shop set to {shop.name}", "shop_id": shop_id}
+        return {
+            "message": "Current shop pointer is deprecated; selected shop is valid for this user.",
+            "shop_id": shop_id,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -165,12 +156,6 @@ def create_shop(
             db, obj_in=shop_in, owner_id=owner_id
         )
         
-        # If this is the user's first shop, set it as current
-        if owner_id == str(current_user.id) and not current_user.shop_id:
-            current_user.shop_id = str(shop.id)
-            db.add(current_user)
-            db.commit()
-        
         return shop
     except HTTPException:
         raise
@@ -206,7 +191,7 @@ def read_shop(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Access denied to this shop"
                 )
-            elif UserRole.is_shop_role(current_user.role) and current_user.shop_id != shop_id:
+            elif UserRole.is_shop_role(current_user.role) and shop.owner_id != str(current_user.id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Access denied to this shop"
@@ -254,10 +239,10 @@ def update_shop(
                         detail="You can only update your own shops"
                     )
             elif current_user.role == UserRole.ADMIN:
-                if current_user.shop_id != shop_id:
+                if shop.owner_id != str(current_user.id):
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You can only update your current shop"
+                        detail="You can only update your own shop"
                     )
             else:
                 raise HTTPException(
@@ -305,12 +290,6 @@ def delete_shop(
                     detail="Only shop owners can delete their shops"
                 )
         
-        # Check if this shop is anyone's current shop and clear it
-        users_with_this_shop = db.query(User).filter(User.shop_id == shop_id).all()
-        for user in users_with_this_shop:
-            user.shop_id = None
-            db.add(user)
-        
         crud_shop.remove(db, id=shop_id)
         db.commit()
         
@@ -355,10 +334,10 @@ def get_shop_users(
                         detail="You can only view users of your own shops"
                     )
             elif current_user.role == UserRole.ADMIN:
-                if current_user.shop_id != shop_id:
+                if shop.owner_id != str(current_user.id):
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You can only view users of your current shop"
+                        detail="You can only view users of your own shop"
                     )
             else:
                 raise HTTPException(
@@ -366,18 +345,28 @@ def get_shop_users(
                     detail="Insufficient permissions to view shop users"
                 )
         
-        # Get users associated with this shop
-        users = db.query(User).filter(User.shop_id == shop_id).all()
-        
-        # Convert to UserShop format
+        role_links = crud_user_shop_role.get_by_shop(db, shop_id=shop_id)
+
+        # Include owner as default shop_owner if no explicit link exists
+        has_owner_role = any(str(link.user_id) == str(shop.owner_id) for link in role_links)
+        if not has_owner_role:
+            role_links.append(
+                type("OwnerRole", (), {
+                    "user_id": shop.owner_id,
+                    "role": "shop_owner",
+                    "is_active": True,
+                    "joined_at": shop.created_at,
+                })()
+            )
+
         user_shops = []
-        for user in users:
+        for link in role_links:
             user_shops.append(UserShop(
                 shop_id=shop.id,
                 shop_name=shop.name,
-                role=user.role,
-                is_current=True,  # Since we're filtering by current shop
-                joined_at=user.created_at or user.updated_at  # Fallback for joined_at
+                role=link.role,
+                is_current=bool(getattr(link, "is_active", True)),
+                joined_at=link.joined_at,
             ))
         
         return user_shops
@@ -388,3 +377,39 @@ def get_shop_users(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching shop users: {str(e)}"
         )
+
+
+@router.patch("/{shop_id}/users/{user_id}/role", response_model=UserShopRoleInDB)
+def upsert_shop_user_role(
+    *,
+    shop_id: str,
+    user_id: str,
+    role_update: UserShopRoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    shop = crud_shop.get(db, id=shop_id)
+    if not shop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shop not found")
+
+    if not UserRole.is_platform_role(current_user.role) and str(shop.owner_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    target_user = crud_user.get(db, id=user_id)
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    existing = crud_user_shop_role.get_by_user_and_shop(db, user_id=user_id, shop_id=shop_id)
+    if existing:
+        return crud_user_shop_role.update(db, db_obj=existing, obj_in=role_update)
+
+    if not role_update.role:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role is required for new assignment")
+
+    create_payload = UserShopRoleCreate(
+        user_id=user_id,
+        shop_id=shop_id,
+        role=role_update.role,
+        is_active=True if role_update.is_active is None else role_update.is_active,
+    )
+    return crud_user_shop_role.upsert(db, obj_in=create_payload)

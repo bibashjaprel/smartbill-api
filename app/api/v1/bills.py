@@ -5,11 +5,13 @@ from ...core.database import get_db
 from ...crud.bill import bill as crud_bill, udharo_transaction as crud_udharo
 from ...crud.customer import customer as crud_customer
 from ...crud.product import product as crud_product
+from ...crud.stock_movement import stock_movement as crud_stock_movement
 from ...crud.shop import shop as crud_shop
 from ...schemas.bill import (
     Bill, BillCreate, BillUpdate, BillWithDetails,
     UdharoTransaction, UdharoTransactionCreate, UdharoTransactionWithDetails
 )
+from ...schemas.stock_movement import StockMovementCreate
 from ...api.deps import get_user_shop, get_current_active_user
 from ...models.shop import Shop
 from ...utils.error_handlers import handle_api_error
@@ -60,6 +62,7 @@ async def create_bill(
         print(f"Received bill create request for specific shop: {request_body}")
         
         # Validate that all products belong to the shop
+        stock_snapshot = {}
         for item in bill_in.items:
             product = crud_product.get_by_shop_and_id(
                 db, shop_id=str(shop.id), product_id=str(item.product_id)
@@ -76,6 +79,11 @@ async def create_bill(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Insufficient stock for product {product.name}. Available: {product.stock_quantity}, Requested: {item.quantity}"
                 )
+
+            stock_snapshot[str(item.product_id)] = {
+                "before": int(product.stock_quantity or 0),
+                "cost_price": product.cost_price,
+            }
         
         # Validate customer if provided
         if bill_in.customer_id:
@@ -96,6 +104,26 @@ async def create_bill(
         for item in bill_in.items:
             crud_product.update_stock(
                 db, product_id=str(item.product_id), quantity_change=-item.quantity
+            )
+
+            before = stock_snapshot[str(item.product_id)]["before"]
+            after = before - int(item.quantity)
+            movement_payload = StockMovementCreate(
+                product_id=item.product_id,
+                movement_type="out",
+                quantity_change=-int(item.quantity),
+                reason=f"Bill {bill.bill_number} stock deduction",
+                reference_type="bill",
+                reference_id=str(bill.id),
+                unit_cost=stock_snapshot[str(item.product_id)]["cost_price"],
+            )
+            crud_stock_movement.create(
+                db,
+                shop_id=shop.id,
+                actor_user_id=None,
+                quantity_before=before,
+                quantity_after=after,
+                obj_in=movement_payload,
             )
         
         # If payment status is pending and customer exists, create udharo transaction

@@ -50,8 +50,8 @@ def _authorize_shop_access(current_user: User, shop: Shop) -> None:
             )
         return
 
-    # Shop-level non-owner roles are scoped to current shop only.
-    if str(current_user.shop_id) != str(shop.id):
+    # Without per-user shop assignment table, non-owner shop roles cannot access arbitrary shops.
+    if str(shop.owner_id) != str(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this shop",

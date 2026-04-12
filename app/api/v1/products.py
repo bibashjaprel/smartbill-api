@@ -3,7 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from ...core.database import get_db
 from ...crud.product import product as crud_product
+from ...crud.stock_movement import stock_movement as crud_stock_movement
 from ...schemas.product import ProductCreate, ProductUpdate, ProductStockUpdate
+from ...schemas.stock_movement import StockMovementCreate, StockMovementInDB
 from ...api.deps import get_current_active_user
 from ...models.user import User
 from ...utils.common import get_user_shop_or_404
@@ -185,9 +187,32 @@ def update_product_stock_current_shop(
         shop = get_user_shop_or_404(db, current_user)
         product = get_product_or_404(db, shop, product_id)
         
+        previous_stock = int(product.stock_quantity or 0)
+        new_stock = int(stock_data.stock)
+        quantity_change = new_stock - previous_stock
+
         # Update stock
-        product_update = ProductUpdate(stock_quantity=stock_data.stock)
+        product_update = ProductUpdate(stock_quantity=new_stock)
         updated_product = crud_product.update(db, db_obj=product, obj_in=product_update)
+
+        if quantity_change != 0:
+            movement_payload = StockMovementCreate(
+                product_id=updated_product.id,
+                movement_type="adjustment",
+                quantity_change=quantity_change,
+                reason="Manual stock adjustment from product stock endpoint",
+                reference_type="manual",
+                reference_id=str(updated_product.id),
+                unit_cost=updated_product.cost_price,
+            )
+            crud_stock_movement.create(
+                db,
+                shop_id=shop.id,
+                actor_user_id=current_user.id,
+                quantity_before=previous_stock,
+                quantity_after=new_stock,
+                obj_in=movement_payload,
+            )
         
         return convert_product_for_frontend(updated_product)
         
@@ -197,4 +222,24 @@ def update_product_stock_current_shop(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating product stock: {str(e)}"
+        )
+
+
+@router.get("/stock-movements/", response_model=List[StockMovementInDB])
+def list_stock_movements_current_shop(
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    skip: int = 0,
+    limit: int = 100,
+):
+    try:
+        shop = get_user_shop_or_404(db, current_user)
+        return crud_stock_movement.get_by_shop(db, shop_id=shop.id, skip=skip, limit=limit)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching stock movement ledger: {str(e)}",
         )

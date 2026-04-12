@@ -46,16 +46,15 @@ def get_user_shops(
     try:
         # For now, get shops owned by user (can be extended to include member shops)
         shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-        current_shop_id = str(current_user.shop_id) if current_user.shop_id else None
+        current_shop_id = str(shops[0].id) if shops else None
         
         user_shops = []
         for i, shop in enumerate(shops):
-            # Use persisted current shop when available, otherwise fallback to first shop.
             is_current = str(shop.id) == current_shop_id if current_shop_id else i == 0
             user_shops.append(UserShop(
                 shop_id=shop.id,
                 shop_name=shop.name,
-                role="owner",  # Currently all are owners, can be enhanced
+                role=current_user.role,
                 is_current=is_current,
                 joined_at=shop.created_at
             ))
@@ -85,15 +84,7 @@ def get_current_shop(
                 detail="No shops found for the current user"
             )
 
-        if current_user.shop_id:
-            selected_shop = next(
-                (shop for shop in shops if str(shop.id) == str(current_user.shop_id)),
-                None,
-            )
-            if selected_shop:
-                return selected_shop
-
-        # Fallback to first shop when no current shop is set.
+        # Fallback to first owned shop.
         return shops[0]
     
     except HTTPException:
@@ -125,14 +116,9 @@ def set_current_shop(
                 detail="You don't have access to this shop"
             )
 
-        current_user.shop_id = shop_id
-        db.add(current_user)
-        db.commit()
-        db.refresh(current_user)
-
         return {
-            "message": "Current shop updated successfully",
-            "current_shop_id": str(current_user.shop_id)
+            "message": "Current shop pointer is deprecated; selected shop is valid for this user.",
+            "current_shop_id": shop_id
         }
     
     except HTTPException:
@@ -158,7 +144,7 @@ def get_user_profile(
         
         user_shops = []
         current_shop = None
-        current_shop_id = str(current_user.shop_id) if current_user.shop_id else None
+        current_shop_id = str(shops[0].id) if shops else None
         
         for i, shop in enumerate(shops):
             is_current = str(shop.id) == current_shop_id if current_shop_id else i == 0
@@ -168,7 +154,7 @@ def get_user_profile(
             user_shops.append(UserShop(
                 shop_id=shop.id,
                 shop_name=shop.name,
-                role="owner",
+                role=current_user.role,
                 is_current=is_current,
                 joined_at=shop.created_at
             ))

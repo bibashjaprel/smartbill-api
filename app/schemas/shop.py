@@ -10,6 +10,14 @@ class ShopBase(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
+    subscription_plan: Optional[str] = "trial"
+    subscription_status: Optional[str] = "active"
+    billing_cycle: Optional[str] = "monthly"
+    manual_billing_amount: Optional[Decimal] = Decimal('0.00')
+    next_billing_date: Optional[datetime] = None
+    subscription_started_at: Optional[datetime] = None
+    subscription_ends_at: Optional[datetime] = None
+    auto_renew: Optional[bool] = True
 
 
 class ShopCreate(ShopBase):

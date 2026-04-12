@@ -54,7 +54,6 @@ class UserInDBBase(UserBase):
     id: uuid.UUID
     is_verified: bool
     role: str
-    shop_id: Optional[uuid.UUID] = None
     google_id: Optional[str] = None
     profile_picture: Optional[str] = None
     created_at: Optional[datetime] = None
