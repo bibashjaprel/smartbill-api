@@ -8,7 +8,22 @@ import logging
 import traceback
 from .core.config import settings
 from .core.database import init_db
-from .api.v1 import auth, users, shops, customers, products, bills, admin, dashboard, udharo, reports
+from .api.v1 import (
+    admin,
+    audit,
+    auth,
+    billing,
+    credits,
+    customers_mgmt,
+    dashboard,
+    inventory,
+    notifications,
+    products,
+    reports,
+    shops,
+    subscriptions,
+    users,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,11 +89,15 @@ app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["aut
 app.include_router(admin.router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 app.include_router(shops.router, prefix=f"{settings.API_V1_STR}/shops", tags=["shops"])
-app.include_router(customers.router, prefix=f"{settings.API_V1_STR}", tags=["customers"])
+app.include_router(customers_mgmt.router, prefix=f"{settings.API_V1_STR}", tags=["customers"])
+app.include_router(credits.router, prefix=f"{settings.API_V1_STR}", tags=["credit"])
 app.include_router(products.router, prefix=f"{settings.API_V1_STR}", tags=["products"])
-app.include_router(bills.router, prefix=f"{settings.API_V1_STR}", tags=["bills"])
+app.include_router(billing.router, prefix=f"{settings.API_V1_STR}", tags=["billing"])
+app.include_router(inventory.router, prefix=f"{settings.API_V1_STR}", tags=["inventory"])
+app.include_router(subscriptions.router, prefix=f"{settings.API_V1_STR}", tags=["subscriptions"])
+app.include_router(notifications.router, prefix=f"{settings.API_V1_STR}", tags=["notifications"])
+app.include_router(audit.router, prefix=f"{settings.API_V1_STR}", tags=["audit"])
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"])
-app.include_router(udharo.router, prefix=f"{settings.API_V1_STR}/udharo", tags=["udharo"])
 app.include_router(reports.router, prefix=f"{settings.API_V1_STR}/reports", tags=["reports"])
 
 

@@ -16,10 +16,9 @@ class Customer(Base):
     address = Column(Text)
     udharo_balance = Column(Numeric(10, 2), default=0.00)
     shop_id = Column(GUID, ForeignKey("shops.id"), nullable=False)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     shop = relationship("Shop", back_populates="customers")
-    bills = relationship("Bill", back_populates="customer")
-    udharo_transactions = relationship("UdharoTransaction", back_populates="customer", cascade="all, delete-orphan")
+    invoices = relationship("Invoice", back_populates="customer")

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ...api.deps import get_current_active_user
 from ...core.database import get_db
 from ...crud.shop import shop as crud_shop
-from ...models.bill import Bill, BillItem
+from ...models.invoice import Invoice, InvoiceItem
 from ...models.product import Product
 from ...models.shop import Shop
 from ...models.user import User
@@ -117,12 +117,12 @@ def _build_bills_query(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
 ):
-    query = db.query(Bill).filter(Bill.shop_id == shop_id)
+    query = db.query(Invoice).filter(Invoice.shop_id == shop_id)
 
     if start_date:
-        query = query.filter(Bill.created_at >= start_date)
+        query = query.filter(Invoice.created_at >= start_date)
     if end_date:
-        query = query.filter(Bill.created_at <= end_date)
+        query = query.filter(Invoice.created_at <= end_date)
 
     return query
 
@@ -133,15 +133,15 @@ def _calculate_summary(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    bills = _build_bills_query(db, shop_id, start_date, end_date).all()
+    invoices = _build_bills_query(db, shop_id, start_date, end_date).all()
 
-    total_revenue = sum(float(bill.total_amount) for bill in bills)
-    total_orders = len(bills)
+    total_revenue = sum(float(invoice.total_amount) for invoice in invoices)
+    total_orders = len(invoices)
 
     total_cost = 0.0
-    for bill in bills:
-        bill_items = db.query(BillItem).filter(BillItem.bill_id == bill.id).all()
-        for item in bill_items:
+    for invoice in invoices:
+        invoice_items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice.id).all()
+        for item in invoice_items:
             product = db.query(Product).filter(Product.id == item.product_id).first()
             if product and product.cost_price:
                 total_cost += float(product.cost_price) * item.quantity
@@ -167,25 +167,25 @@ def _calculate_top_products(
     query = (
         db.query(
             Product.name.label("product_name"),
-            func.sum(BillItem.quantity).label("total_quantity"),
-            func.sum(BillItem.total_price).label("total_revenue"),
+            func.sum(InvoiceItem.quantity).label("total_quantity"),
+            func.sum(InvoiceItem.quantity * InvoiceItem.price).label("total_revenue"),
         )
-        .join(BillItem, Product.id == BillItem.product_id)
-        .join(Bill, BillItem.bill_id == Bill.id)
-        .filter(Bill.shop_id == shop_id)
+        .join(InvoiceItem, Product.id == InvoiceItem.product_id)
+        .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
+        .filter(Invoice.shop_id == shop_id)
     )
 
     if start_date and end_date:
         query = query.filter(
             and_(
-                Bill.created_at >= start_date,
-                Bill.created_at <= end_date,
+                Invoice.created_at >= start_date,
+                Invoice.created_at <= end_date,
             )
         )
 
     results = (
         query.group_by(Product.id, Product.name)
-        .order_by(func.sum(BillItem.total_price).desc())
+        .order_by(func.sum(InvoiceItem.quantity * InvoiceItem.price).desc())
         .limit(limit)
         .all()
     )

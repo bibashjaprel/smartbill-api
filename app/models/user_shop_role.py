@@ -1,9 +1,14 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, UniqueConstraint
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Boolean, UniqueConstraint
+from sqlalchemy import JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 
 from ..core.database import Base, GUID
+from .enums import ShopRole
+
+jsonb_type = JSON().with_variant(JSONB, "postgresql")
 
 
 class UserShopRole(Base):
@@ -15,10 +20,11 @@ class UserShopRole(Base):
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     user_id = Column(GUID, ForeignKey("users.id"), nullable=False, index=True)
     shop_id = Column(GUID, ForeignKey("shops.id"), nullable=False, index=True)
-    role = Column(String(50), nullable=False, default="employee")
+    role = Column(Enum(ShopRole, name="shop_role_enum"), nullable=False, default=ShopRole.staff)
+    permissions = Column(jsonb_type, nullable=False, default=dict)
     is_active = Column(Boolean, nullable=False, default=True)
-    joined_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    joined_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="shop_roles")
     shop = relationship("Shop", back_populates="user_roles")

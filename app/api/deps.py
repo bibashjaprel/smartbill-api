@@ -1,4 +1,5 @@
-from typing import Generator, Optional
+from typing import Callable, Generator, Optional, Set
+from uuid import UUID
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -8,6 +9,9 @@ from ..crud.user import user as crud_user
 from ..crud.shop import shop as crud_shop
 from ..models.user import User
 from ..models.shop import Shop
+from ..models.user_shop_role import UserShopRole
+from ..models.enums import ShopRole
+from ..modules.subscriptions.service import SubscriptionService
 
 security = HTTPBearer(auto_error=False)
 
@@ -108,3 +112,75 @@ def get_user_shop(
             detail="Shop not found or access denied"
         )
     return shop
+
+
+def get_current_shop(
+    shop_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> Shop:
+    try:
+        parsed_shop_id = UUID(shop_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid shop_id")
+
+    shop = crud_shop.get(db, id=parsed_shop_id)
+    if not shop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shop not found")
+
+    if shop.owner_id == current_user.id:
+        return shop
+
+    role = (
+        db.query(UserShopRole)
+        .filter(
+            UserShopRole.shop_id == parsed_shop_id,
+            UserShopRole.user_id == current_user.id,
+            UserShopRole.is_active.is_(True),
+        )
+        .first()
+    )
+    if not role:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied for shop")
+    return shop
+
+
+def require_shop_roles(allowed_roles: Set[ShopRole]) -> Callable:
+    def _dependency(
+        shop: Shop = Depends(get_current_shop),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+    ) -> UserShopRole:
+        if shop.owner_id == current_user.id:
+            return UserShopRole(user_id=current_user.id, shop_id=shop.id, role=ShopRole.owner)
+
+        role_assignment = (
+            db.query(UserShopRole)
+            .filter(
+                UserShopRole.shop_id == shop.id,
+                UserShopRole.user_id == current_user.id,
+                UserShopRole.is_active.is_(True),
+            )
+            .first()
+        )
+        if not role_assignment:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing shop role")
+
+        if role_assignment.role not in allowed_roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient shop permissions")
+
+        return role_assignment
+
+    return _dependency
+
+
+def check_shop_subscription(feature_key: str) -> Callable:
+    def _dependency(
+        shop: Shop = Depends(get_current_shop),
+        db: Session = Depends(get_db),
+    ) -> None:
+        is_allowed, _, _, reason = SubscriptionService.check_feature_access(db, shop.id, feature_key)
+        if not is_allowed:
+            raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail=reason or "Subscription limit reached")
+
+    return _dependency

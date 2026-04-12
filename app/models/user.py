@@ -18,10 +18,12 @@ class User(Base):
     role = Column(String(50), default="employee")  # super_admin, platform_admin, shop_owner, admin, manager, employee
     google_id = Column(String(255), unique=True, nullable=True, index=True)
     profile_picture = Column(String(500), nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     owned_shops = relationship("Shop", foreign_keys="Shop.owner_id", back_populates="owner", cascade="all, delete-orphan")
     shop_roles = relationship("UserShopRole", back_populates="user", cascade="all, delete-orphan")
     stock_movements = relationship("StockMovement", back_populates="actor")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")

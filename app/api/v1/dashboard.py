@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 from ...core.database import get_db
 from ...crud.shop import shop as crud_shop
 from ...crud.product import product as crud_product
 from ...crud.customer import customer as crud_customer
-from ...crud.bill import bill as crud_bill, udharo_transaction as crud_udharo
+from ...crud.invoice import invoice as crud_invoice
 from ...api.deps import get_current_active_user
+from ...models.invoice import Invoice
 from ...models.user import User
-from ...utils.error_handlers import handle_api_error
 from decimal import Decimal
 
 router = APIRouter()
@@ -37,17 +38,16 @@ def get_dashboard_stats(
         # Get basic counts
         customers = crud_customer.get_by_shop(db, shop_id=shop_id) or []
         products = crud_product.get_by_shop(db, shop_id=shop_id) or []
-        bills = crud_bill.get_by_shop(db, shop_id=shop_id) or []
+        invoices = crud_invoice.get_by_shop(db, shop_id=shop.id, skip=0, limit=10000) or []
         
         # Get revenue stats
-        total_sales = crud_bill.get_total_revenue(db, shop_id=shop_id) or 0.0
+        total_sales = sum(float(item.paid_amount or 0) for item in invoices)
         
         # Get pending payments
-        pending_bills = crud_bill.get_pending_bills(db, shop_id=shop_id) or []
+        pending_invoices = [item for item in invoices if str(item.status) in ["InvoiceStatus.unpaid", "InvoiceStatus.partial"]]
         pending_payments = sum(
-            float(bill.total_amount - bill.paid_amount) 
-            for bill in pending_bills 
-            if hasattr(bill, 'total_amount') and hasattr(bill, 'paid_amount')
+            float((item.total_amount or 0) - (item.paid_amount or 0))
+            for item in pending_invoices
         )
         
         # Get low stock products count
@@ -63,7 +63,7 @@ def get_dashboard_stats(
         return {
             "total_products": len(products),
             "total_customers": len(customers),
-            "total_bills": len(bills),
+            "total_bills": len(invoices),
             "total_sales": float(total_sales),
             "pending_payments": float(pending_payments),
             "low_stock_products": len(low_stock_products_list)
@@ -96,8 +96,8 @@ def get_dashboard_details(
         shop = shops[0]
         shop_id = str(shop.id)
         
-        # Get recent bills
-        recent_bills = crud_bill.get_recent_bills(db, shop_id=shop_id, limit=5) or []
+        # Get recent invoices
+        recent_invoices = crud_invoice.get_by_shop(db, shop_id=shop.id, skip=0, limit=5) or []
         
         # Get low stock products (detailed list)
         low_stock_products = []
@@ -122,13 +122,13 @@ def get_dashboard_details(
             },
             "recent_bills": [
                 {
-                    "id": str(bill.id),
-                    "customer_name": bill.customer.name if bill.customer and hasattr(bill.customer, 'name') else "Walk-in Customer",
-                    "total_amount": float(bill.total_amount) if hasattr(bill, 'total_amount') else 0.0,
-                    "created_at": bill.created_at.isoformat() if hasattr(bill, 'created_at') else "",
-                    "payment_status": bill.payment_status if hasattr(bill, 'payment_status') else "unknown"
+                    "id": str(invoice.id),
+                    "customer_name": invoice.customer.name if invoice.customer and hasattr(invoice.customer, 'name') else "Walk-in Customer",
+                    "total_amount": float(invoice.total_amount) if hasattr(invoice, 'total_amount') else 0.0,
+                    "created_at": invoice.created_at.isoformat() if hasattr(invoice, 'created_at') else "",
+                    "payment_status": str(invoice.status).replace("InvoiceStatus.", "")
                 }
-                for bill in recent_bills if bill
+                for invoice in recent_invoices if invoice
             ],
             "low_stock_products": [
                 {
@@ -178,38 +178,35 @@ def get_udharo_summary(
         shop = shops[0]
         shop_id = str(shop.id)
         
-        # Get customers with outstanding balance
-        customers_with_balance = crud_customer.get_customers_with_outstanding_balance(
-            db, shop_id=shop_id
-        ) or []
-        
+        # Get customers with outstanding balance from invoices
+        customers_with_balance = (
+            db.query(Invoice.customer_id, func.sum(Invoice.total_amount - Invoice.paid_amount).label("due_amount"))
+            .filter(Invoice.shop_id == shop.id, Invoice.customer_id.isnot(None))
+            .group_by(Invoice.customer_id)
+            .having(func.sum(Invoice.total_amount - Invoice.paid_amount) > 0)
+            .all()
+        )
+
         # Calculate total outstanding credit
-        total_credit = sum(customer.udharo_balance for customer in customers_with_balance) if customers_with_balance else Decimal('0.0')
+        total_credit = sum(Decimal(item.due_amount) for item in customers_with_balance) if customers_with_balance else Decimal('0.0')
         
         # Calculate average balance if there are customers
         avg_balance = (total_credit / len(customers_with_balance)) if customers_with_balance and len(customers_with_balance) > 0 else Decimal('0.0')
         
-        # Get all transactions for these customers to calculate total payments
+        # Build customer credit summary from invoices
         customers_with_credit = []
-        for customer in customers_with_balance:
-            transactions = crud_udharo.get_by_customer(db, customer_id=str(customer.id))
-            
-            # Calculate total credit and payments
-            total_credit_per_customer = sum(
-                float(t.amount) for t in transactions 
-                if hasattr(t, 'transaction_type') and t.transaction_type == 'credit'
-            )
-            total_payments = sum(
-                float(t.amount) for t in transactions 
-                if hasattr(t, 'transaction_type') and t.transaction_type == 'payment'
-            )
-            
+        for row in customers_with_balance:
+            customer = crud_customer.get(db, id=row.customer_id)
+            customer_invoices = crud_invoice.get_by_shop_and_customer(db, shop_id=shop.id, customer_id=row.customer_id)
+            total_credit_per_customer = sum(float(item.total_amount or 0) for item in customer_invoices)
+            total_payments = sum(float(item.paid_amount or 0) for item in customer_invoices)
+
             customers_with_credit.append({
-                "customer_id": str(customer.id),
-                "customer_name": customer.name if hasattr(customer, 'name') else "",
+                "customer_id": str(row.customer_id),
+                "customer_name": customer.name if customer and hasattr(customer, 'name') else "",
                 "total_credit": total_credit_per_customer,
                 "total_payments": total_payments,
-                "balance": float(customer.udharo_balance)
+                "balance": float(Decimal(row.due_amount))
             })
         
         # Format the response in the structure expected by the frontend

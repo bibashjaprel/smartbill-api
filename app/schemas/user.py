@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationInfo, field_validator
 from typing import Optional, List
 from datetime import datetime
 import uuid
@@ -25,25 +25,28 @@ class UserSignup(BaseModel):
     password: str
     confirm_password: str
     
-    @validator('confirm_password')
-    def passwords_match(cls, v, values, **kwargs):
-        if 'password' in values and v != values['password']:
+    @field_validator('confirm_password')
+    @classmethod
+    def passwords_match(cls, value: str, info: ValidationInfo) -> str:
+        if 'password' in info.data and value != info.data['password']:
             raise ValueError('Passwords do not match')
-        return v
+        return value
     
-    @validator('full_name')
-    def validate_full_name(cls, v):
-        if not v or not v.strip():
+    @field_validator('full_name')
+    @classmethod
+    def validate_full_name(cls, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError('Full name is required')
-        if len(v.strip()) < 2:
+        if len(value.strip()) < 2:
             raise ValueError('Full name must be at least 2 characters long')
-        return v.strip()
+        return value.strip()
     
-    @validator('password')
-    def validate_password(cls, v):
-        if len(v) < 6:
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if len(value) < 6:
             raise ValueError('Password must be at least 6 characters long')
-        return v
+        return value
 
 
 class UserUpdate(UserBase):
@@ -59,8 +62,14 @@ class UserInDBBase(UserBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True  # For ORM mode
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str) -> str:
+        if value not in UserRole.all_roles():
+            raise ValueError(f"Invalid role: {value}")
+        return value
 
 
 class User(UserInDBBase):
@@ -84,16 +93,21 @@ class UserShop(BaseModel):
     is_current: bool
     joined_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str) -> str:
+        if value not in UserRole.all_roles():
+            raise ValueError(f"Invalid role: {value}")
+        return value
 
 
 class UserProfile(UserInDBBase):
     current_shop_id: Optional[uuid.UUID] = None
     shops: List[UserShop] = Field(default_factory=list)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SetCurrentShopRequest(BaseModel):
@@ -202,11 +216,3 @@ class AdminResetPasswordRequest(BaseModel):
 # 🧩 Extra: Role Validation Hook
 # =========================================================
 
-# Add role validation to user models
-for cls in [UserInDBBase, UserShop]:
-    @validator("role", pre=True, allow_reuse=True)
-    def validate_role(cls, value):
-        """Ensure role is one of the predefined roles"""
-        if value not in UserRole.all_roles():
-            raise ValueError(f"Invalid role: {value}")
-        return value

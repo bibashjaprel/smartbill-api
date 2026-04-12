@@ -63,22 +63,21 @@ class CRUDCustomer(CRUDBase[Customer, CustomerCreate, CustomerUpdate]):
         """
         try:
             from sqlalchemy import func
-            from sqlalchemy.orm import aliased
-            from ..models.bill import Bill
+            from ..models.invoice import Invoice
             
             # Create a query that sums up the total amount spent by each customer
             result = (
                 db.query(
                     Customer,
-                    func.sum(Bill.total_amount).label('total_spent')
+                    func.sum(Invoice.paid_amount).label('total_spent')
                 )
-                .join(Bill, Bill.customer_id == Customer.id)
+                .join(Invoice, Invoice.customer_id == Customer.id)
                 .filter(
                     Customer.shop_id == shop_id,
-                    Bill.payment_status == 'paid'  # Only count paid bills
+                    Invoice.paid_amount > 0
                 )
                 .group_by(Customer.id)
-                .order_by(func.sum(Bill.total_amount).desc())
+                .order_by(func.sum(Invoice.paid_amount).desc())
                 .limit(limit)
                 .all()
             )

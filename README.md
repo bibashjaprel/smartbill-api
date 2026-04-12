@@ -1,6 +1,6 @@
 # BillSmart API
 
-A production-ready FastAPI backend for a comprehensive smart billing system with authentication, customer management, product catalog, bill generation, and business analytics.
+A production-ready FastAPI backend for a multi-tenant smart billing + inventory SaaS with authentication, customer management, invoice accounting, subscriptions, and business analytics.
 
 ## 🚀 Features
 
@@ -25,8 +25,8 @@ A production-ready FastAPI backend for a comprehensive smart billing system with
 
 ### 👤 **Customer Management**
 - Customer profiles and contact information
-- Udharo (credit) balance tracking
-- Customer transaction history
+- Customer credit ledger based on invoice dues
+- Customer payment history via invoice payments
 - Search and filtering capabilities
 
 ### 📦 **Product Catalog**
@@ -37,10 +37,16 @@ A production-ready FastAPI backend for a comprehensive smart billing system with
 - Search functionality
 
 ### 🧾 **Billing System**
-- Bill generation and management
-- Udharo transaction tracking
-- Payment status tracking
-- Bill history and analytics
+- Invoice generation and management
+- Invoice payment tracking
+- Credit (due) tracking from unpaid/partial invoices
+- Invoice history and analytics
+
+### 💳 **Subscriptions**
+- Plan management (monthly/yearly)
+- Shop subscription lifecycle
+- Subscription payment tracking
+- Feature access checks by plan limits
 
 ### 📊 **Business Analytics**
 - Dashboard with key metrics
@@ -206,13 +212,16 @@ print('Admin user created: admin@billsmart.com / admin123')
 - `PUT /api/v1/shops/{shop_id}` - Update shop
 
 #### Customer Management
-- `GET /api/v1/customers/` - List customers
-- `POST /api/v1/customers/` - Create customer
-- `GET /api/v1/customers/{customer_id}` - Get customer
-- `PUT /api/v1/customers/{customer_id}` - Update customer
-- `DELETE /api/v1/customers/{customer_id}` - Delete customer
-- `POST /api/v1/customers/{customer_id}/udharo` - Record udharo payment
-- `GET /api/v1/customers/{customer_id}/udharo` - Get udharo history
+- `GET /api/v1/shops/{shop_id}/customers` - List customers
+- `POST /api/v1/shops/{shop_id}/customers` - Create customer
+- `GET /api/v1/shops/{shop_id}/customers/{customer_id}` - Get customer
+- `PUT /api/v1/shops/{shop_id}/customers/{customer_id}` - Update customer
+- `DELETE /api/v1/shops/{shop_id}/customers/{customer_id}` - Delete customer
+
+#### Credit Management
+- `GET /api/v1/shops/{shop_id}/customers/{customer_id}/credit/summary` - Customer due summary
+- `GET /api/v1/shops/{shop_id}/customers/{customer_id}/credit/ledger` - Outstanding invoice ledger
+- `POST /api/v1/shops/{shop_id}/customers/{customer_id}/credit/payments` - Apply payment to invoice
 
 #### Product Management
 - `GET /api/v1/products/` - List products
@@ -222,11 +231,16 @@ print('Admin user created: admin@billsmart.com / admin123')
 - `DELETE /api/v1/products/{product_id}` - Delete product
 - `PATCH /api/v1/products/{product_id}/stock` - Update stock
 
-#### Bill Management
-- `GET /api/v1/bills/` - List bills
-- `POST /api/v1/bills/` - Create bill
-- `GET /api/v1/bills/{bill_id}` - Get bill
-- `PUT /api/v1/bills/{bill_id}` - Update bill
+#### Invoice Management
+- `GET /api/v1/shops/{shop_id}/invoices` - List invoices
+- `POST /api/v1/shops/{shop_id}/invoices` - Create invoice
+- `POST /api/v1/shops/{shop_id}/invoices/{invoice_id}/payments` - Add invoice payment
+
+#### Subscription Management
+- `GET /api/v1/shops/{shop_id}/plans` - List plans
+- `GET /api/v1/shops/{shop_id}/subscriptions` - List shop subscriptions
+- `POST /api/v1/shops/{shop_id}/subscriptions` - Create subscription
+- `POST /api/v1/shops/{shop_id}/subscriptions/{subscription_id}/payments` - Add subscription payment
 
 #### Analytics & Reports
 - `GET /api/v1/dashboard/stats` - Dashboard statistics
@@ -235,7 +249,8 @@ print('Admin user created: admin@billsmart.com / admin123')
 - `GET /api/v1/reports/monthly-stats` - Monthly statistics
 - `GET /api/v1/reports/top-products` - Top performing products
 - `GET /api/v1/reports/export` - Export reports (JSON/CSV)
-- `GET /api/v1/udharo/summary` - Udharo summary
+- `GET /api/v1/audit/logs` - Audit logs (admin/platform)
+- `GET /api/v1/notifications` - User notifications
 
 ### Local Development
 
@@ -301,7 +316,7 @@ Test all endpoints with the included test scripts:
 python test_auth.py
 
 # Test customer management
-python test_customers.py
+pytest tests/test_saas_services.py -v
 
 # Test product management
 python test_products.py
@@ -369,12 +384,16 @@ smartbill-api/
 │   │       ├── users.py         # User management
 │   │       ├── admin.py         # Admin endpoints
 │   │       ├── shops.py         # Shop management
-│   │       ├── customers.py     # Customer management
+│   │       ├── customers_mgmt.py # Customer management
+│   │       ├── credits.py       # Credit ledger endpoints
 │   │       ├── products.py      # Product management
-│   │       ├── bills.py         # Bill management
+│   │       ├── billing.py       # Invoice & payment endpoints
+│   │       ├── subscriptions.py # Plan/subscription endpoints
+│   │       ├── inventory.py     # Stock and inventory alerts
+│   │       ├── notifications.py # Notification endpoints
+│   │       ├── audit.py         # Audit endpoints
 │   │       ├── dashboard.py     # Dashboard analytics
-│   │       ├── reports.py       # Reports and exports
-│   │       └── udharo.py        # Credit/Udharo management
+│   │       └── reports.py       # Reports and exports
 │   ├── core/
 │   │   ├── config.py            # Configuration settings
 │   │   ├── database.py          # Database setup
@@ -387,19 +406,33 @@ smartbill-api/
 │   │   ├── shop.py              # Shop CRUD
 │   │   ├── customer.py          # Customer CRUD
 │   │   ├── product.py           # Product CRUD
-│   │   └── bill.py              # Bill CRUD
+│   │   ├── invoice.py           # Invoice CRUD
+│   │   ├── credit.py            # Credit helper CRUD
+│   │   ├── subscription.py      # Subscription CRUD
+│   │   ├── inventory_alert.py   # Inventory alert CRUD
+│   │   ├── notification.py      # Notification CRUD
+│   │   └── audit_log.py         # Audit log CRUD
 │   ├── models/                  # SQLAlchemy models
 │   │   ├── user.py              # User model
 │   │   ├── shop.py              # Shop model
 │   │   ├── customer.py          # Customer model
 │   │   ├── product.py           # Product model
-│   │   └── bill.py              # Bill model
+│   │   ├── invoice.py           # Invoice models
+│   │   ├── subscription.py      # Subscription models
+│   │   ├── inventory_alert.py   # Inventory alert model
+│   │   ├── notification.py      # Notification model
+│   │   └── audit_log.py         # Audit log model
 │   ├── schemas/                 # Pydantic schemas
 │   │   ├── user.py              # User schemas
 │   │   ├── shop.py              # Shop schemas
 │   │   ├── customer.py          # Customer schemas
 │   │   ├── product.py           # Product schemas
-│   │   └── bill.py              # Bill schemas
+│   │   ├── invoice.py           # Invoice schemas
+│   │   ├── credit.py            # Credit schemas
+│   │   ├── subscription.py      # Subscription schemas
+│   │   ├── inventory.py         # Inventory schemas
+│   │   ├── notification.py      # Notification schemas
+│   │   └── audit.py             # Audit schemas
 │   ├── utils/                   # Utility functions
 │   │   ├── __init__.py          # Utils package
 │   │   ├── common.py            # Common utilities
@@ -409,8 +442,8 @@ smartbill-api/
 │   └── main.py                  # FastAPI app
 ├── tests/                       # Test files
 │   ├── test_auth.py            # Authentication tests
-│   ├── test_customers.py       # Customer tests
-│   └── test_products.py        # Product tests
+│   ├── test_products.py        # Product tests
+│   └── test_saas_services.py   # SaaS services tests (subscriptions/invoices/inventory/credit)
 ├── database_schema.sql          # Database schema
 ├── start_server.py             # Server entry point
 ├── requirements.txt            # Python dependencies
@@ -448,7 +481,7 @@ The application uses PostgreSQL with the following configuration:
 - **Engine**: PostgreSQL 12+
 - **Driver**: psycopg2-binary
 - **Connection Pool**: SQLAlchemy connection pooling
-- **Migrations**: Direct table creation (no Alembic)
+- **Migrations**: Alembic (`alembic/versions/*`)
 
 ### Security Configuration
 
