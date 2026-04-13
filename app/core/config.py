@@ -63,6 +63,7 @@ class Settings:
             os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_HOURS", "2")
         )
         self.DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"1", "true", "yes", "on"}
+        self.AUTO_INIT_DB: bool = os.getenv("AUTO_INIT_DB", "false").lower() in {"1", "true", "yes", "on"}
 
     def masked_database_url(self) -> str:
         return (

@@ -70,7 +70,11 @@ app = FastAPI(
 @app.on_event("startup")
 async def log_database_connection_info() -> None:
     logger.info("Using DATABASE_URL: %s", settings.masked_database_url())
-    init_db()
+    if settings.AUTO_INIT_DB:
+        logger.warning("AUTO_INIT_DB is enabled; running Base.metadata.create_all via init_db()")
+        init_db()
+    else:
+        logger.info("AUTO_INIT_DB is disabled; expecting schema managed by Alembic migrations")
 
 # Add custom error handling middleware first
 app.add_middleware(CORSMiddlewareWithErrorHandling)
