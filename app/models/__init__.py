@@ -3,6 +3,7 @@ from .user import User
 from .shop import Shop
 from .customer import Customer
 from .product import Product
+from .supplier import Supplier
 from .invoice import Invoice, InvoiceItem, InvoicePayment
 from .stock_movement import StockMovement
 from .user_shop_role import UserShopRole
@@ -16,6 +17,7 @@ __all__ = [
     "Shop", 
     "Customer",
     "Product",
+    "Supplier",
     "Invoice",
     "InvoiceItem",
     "InvoicePayment",

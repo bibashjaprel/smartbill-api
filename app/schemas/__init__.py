@@ -13,6 +13,7 @@ from .invoice import (
 from .notification import NotificationCreate, NotificationRead
 from .product import Product, ProductCreate, ProductUpdate
 from .shop import Shop, ShopCreate, ShopUpdate
+from .supplier import SupplierCreate, SupplierRead, SupplierUpdate
 from .stock_movement import StockMovementCreate, StockMovementInDB
 from .subscription import (
 	FeatureAccessRead,
@@ -53,6 +54,9 @@ __all__ = [
 	"Shop",
 	"ShopCreate",
 	"ShopUpdate",
+	"SupplierCreate",
+	"SupplierRead",
+	"SupplierUpdate",
 	"StockMovementCreate",
 	"StockMovementCreateV2",
 	"StockMovementInDB",

@@ -6,6 +6,7 @@ from .invoice import invoice, invoice_payment
 from .notification import notification
 from .product import product
 from .shop import shop
+from .supplier import supplier
 from .stock_movement import stock_movement
 from .subscription import plan, subscription, subscription_payment
 from .user import user
@@ -22,6 +23,7 @@ __all__ = [
 	"plan",
 	"product",
 	"shop",
+	"supplier",
 	"stock_movement",
 	"subscription",
 	"subscription_payment",

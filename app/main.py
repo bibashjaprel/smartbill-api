@@ -21,6 +21,7 @@ from .api.v1 import (
     products,
     reports,
     shops,
+    suppliers,
     subscriptions,
     users,
 )
@@ -89,6 +90,7 @@ app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["aut
 app.include_router(admin.router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 app.include_router(shops.router, prefix=f"{settings.API_V1_STR}/shops", tags=["shops"])
+app.include_router(suppliers.router, prefix=f"{settings.API_V1_STR}", tags=["suppliers"])
 app.include_router(customers_mgmt.router, prefix=f"{settings.API_V1_STR}", tags=["customers"])
 app.include_router(credits.router, prefix=f"{settings.API_V1_STR}", tags=["credit"])
 app.include_router(products.router, prefix=f"{settings.API_V1_STR}", tags=["products"])

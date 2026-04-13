@@ -31,6 +31,7 @@ class Shop(Base):
     user_roles = relationship("UserShopRole", back_populates="shop", cascade="all, delete-orphan")
     customers = relationship("Customer", back_populates="shop", cascade="all, delete-orphan")
     products = relationship("Product", back_populates="shop", cascade="all, delete-orphan")
+    suppliers = relationship("Supplier", back_populates="shop", cascade="all, delete-orphan")
     stock_movements = relationship("StockMovement", back_populates="shop", cascade="all, delete-orphan")
     subscriptions = relationship("Subscription", back_populates="shop", cascade="all, delete-orphan")
     invoices = relationship("Invoice", back_populates="shop", cascade="all, delete-orphan")
