@@ -267,6 +267,44 @@ curl -X POST "http://localhost:8000/api/v1/auth/register" \
   -d '{"email":"test@example.com","password":"testpass123","full_name":"Test User"}'
 ```
 
+## 🐳 Docker Deployment (Recommended)
+
+This project is configured for a simple and conflict-free Docker flow.
+
+### 1) Prepare environment
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` and set at minimum:
+- `POSTGRES_PASSWORD`
+- `SECRET_KEY`
+
+### 2) Build and run
+
+```bash
+docker compose up --build -d
+```
+
+### 3) Verify services
+
+```bash
+docker compose ps
+curl http://localhost:8000/health
+```
+
+### 4) Stop services
+
+```bash
+docker compose down
+```
+
+### Notes
+- API container waits for Postgres, then runs `alembic upgrade head` automatically.
+- Ports are configurable via `.env` (`API_PORT`, `DB_PORT`) to avoid local conflicts.
+- Do not commit real secrets in `.env`; keep secrets local or in your deployment secret manager.
+
 ### Running Tests
 
 ```bash

@@ -136,7 +136,7 @@ dmypy.json
 cython_debug/
 
 # Alembic
-alembic/versions/*.py
+!alembic/versions/*.py
 !alembic/versions/README
 
 # VS Code
