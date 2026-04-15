@@ -19,15 +19,15 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-billing_cycle_enum = sa.Enum("monthly", "yearly", name="billing_cycle_enum")
-subscription_status_enum = sa.Enum("trial", "active", "past_due", "canceled", name="subscription_status_enum")
-payment_status_enum = sa.Enum("pending", "succeeded", "failed", "refunded", name="payment_status_enum")
-payment_provider_enum = sa.Enum("esewa", "khalti", "stripe_future", name="payment_provider_enum")
-invoice_status_enum = sa.Enum("paid", "partial", "unpaid", name="invoice_status_enum")
-stock_movement_type_enum = sa.Enum("sale", "purchase", "adjustment", "return", name="stock_movement_type_enum")
-shop_role_enum = sa.Enum("owner", "admin", "staff", name="shop_role_enum")
-notification_type_enum = sa.Enum("system", "billing", "inventory", "subscription", name="notification_type_enum")
-audit_action_enum = sa.Enum("create", "update", "delete", name="audit_action_enum")
+billing_cycle_enum = postgresql.ENUM("monthly", "yearly", name="billing_cycle_enum", create_type=False)
+subscription_status_enum = postgresql.ENUM("trial", "active", "past_due", "canceled", name="subscription_status_enum", create_type=False)
+payment_status_enum = postgresql.ENUM("pending", "succeeded", "failed", "refunded", name="payment_status_enum", create_type=False)
+payment_provider_enum = postgresql.ENUM("esewa", "khalti", "stripe_future", name="payment_provider_enum", create_type=False)
+invoice_status_enum = postgresql.ENUM("paid", "partial", "unpaid", name="invoice_status_enum", create_type=False)
+stock_movement_type_enum = postgresql.ENUM("sale", "purchase", "adjustment", "return", name="stock_movement_type_enum", create_type=False)
+shop_role_enum = postgresql.ENUM("owner", "admin", "staff", name="shop_role_enum", create_type=False)
+notification_type_enum = postgresql.ENUM("system", "billing", "inventory", "subscription", name="notification_type_enum", create_type=False)
+audit_action_enum = postgresql.ENUM("create", "update", "delete", name="audit_action_enum", create_type=False)
 
 
 def upgrade() -> None:
