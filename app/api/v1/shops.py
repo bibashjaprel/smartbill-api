@@ -1,6 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from ...core.config import settings
 from ...core.database import get_db
 from ...crud.shop import shop as crud_shop
 from ...crud.user import user as crud_user
@@ -151,6 +152,13 @@ def create_shop(
         else:
             # Shop owners can only create shops for themselves
             owner_id = str(current_user.id)
+
+        existing_shops = crud_shop.get_by_owner(db, owner_id=owner_id)
+        if len(existing_shops) >= settings.MAX_SHOPS_PER_OWNER:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Shop creation limit reached. Maximum {settings.MAX_SHOPS_PER_OWNER} shops allowed per owner."
+            )
         
         shop = crud_shop.create_with_owner(
             db, obj_in=shop_in, owner_id=owner_id

@@ -64,6 +64,7 @@ class Settings:
         )
         self.DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"1", "true", "yes", "on"}
         self.AUTO_INIT_DB: bool = os.getenv("AUTO_INIT_DB", "false").lower() in {"1", "true", "yes", "on"}
+        self.MAX_SHOPS_PER_OWNER: int = int(os.getenv("MAX_SHOPS_PER_OWNER", "3"))
 
     def masked_database_url(self) -> str:
         return (
