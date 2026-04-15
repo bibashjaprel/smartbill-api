@@ -12,8 +12,9 @@ import app.models  # noqa: F401
 # access to the values within the .ini file in use.
 config = context.config
 
-# Set the database URL in the alembic.ini file
-config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
+# Set the database URL in the alembic.ini file.
+# Alembic uses ConfigParser interpolation, so '%' must be escaped as '%%'.
+config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL).replace("%", "%%"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
