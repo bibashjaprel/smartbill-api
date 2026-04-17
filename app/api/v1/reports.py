@@ -133,25 +133,33 @@ def _calculate_summary(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    invoices = _build_bills_query(db, shop_id, start_date, end_date).all()
+    invoice_query = _build_bills_query(db, shop_id, start_date, end_date)
+    total_orders = invoice_query.count()
+    total_revenue = db.query(func.coalesce(func.sum(Invoice.total_amount), 0)).filter(Invoice.shop_id == shop_id)
+    if start_date:
+        total_revenue = total_revenue.filter(Invoice.created_at >= start_date)
+    if end_date:
+        total_revenue = total_revenue.filter(Invoice.created_at <= end_date)
+    total_revenue_value = float(total_revenue.scalar() or 0)
 
-    total_revenue = sum(float(invoice.total_amount) for invoice in invoices)
-    total_orders = len(invoices)
+    total_cost_query = (
+        db.query(func.coalesce(func.sum(InvoiceItem.quantity * Product.cost_price), 0))
+        .join(Invoice, Invoice.id == InvoiceItem.invoice_id)
+        .join(Product, Product.id == InvoiceItem.product_id)
+        .filter(Invoice.shop_id == shop_id)
+    )
+    if start_date:
+        total_cost_query = total_cost_query.filter(Invoice.created_at >= start_date)
+    if end_date:
+        total_cost_query = total_cost_query.filter(Invoice.created_at <= end_date)
+    total_cost_value = float(total_cost_query.scalar() or 0)
 
-    total_cost = 0.0
-    for invoice in invoices:
-        invoice_items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice.id).all()
-        for item in invoice_items:
-            product = db.query(Product).filter(Product.id == item.product_id).first()
-            if product and product.cost_price:
-                total_cost += float(product.cost_price) * item.quantity
-
-    avg_order_value = total_revenue / total_orders if total_orders > 0 else 0
+    avg_order_value = total_revenue_value / total_orders if total_orders > 0 else 0
 
     return {
-        "total_revenue": total_revenue,
-        "total_cost": total_cost,
-        "total_profit": total_revenue - total_cost,
+        "total_revenue": total_revenue_value,
+        "total_cost": total_cost_value,
+        "total_profit": total_revenue_value - total_cost_value,
         "total_orders": total_orders,
         "avg_order_value": avg_order_value,
     }

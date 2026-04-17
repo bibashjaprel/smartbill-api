@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from ...core.config import settings
 from ...core.database import get_db
+from ...core.transaction import write_transaction
 from ...crud.shop import shop as crud_shop
 from ...crud.user import user as crud_user
 from ...crud.user_shop_role import user_shop_role as crud_user_shop_role
@@ -258,7 +259,8 @@ def update_shop(
                     detail="Insufficient permissions to update shop"
                 )
         
-        shop = crud_shop.update(db, db_obj=shop, obj_in=shop_in)
+        with write_transaction(db):
+            shop = crud_shop.update(db, db_obj=shop, obj_in=shop_in)
         return shop
     except HTTPException:
         raise

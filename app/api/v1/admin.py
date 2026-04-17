@@ -3,6 +3,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ...core.database import get_db
 from ...crud.user import user as crud_user
+from ...models.enums import AuditAction
+from ...modules.audit.service import AuditService
+from ...schemas.audit import AuditLogCreate
 from ...schemas.user import AdminResetPasswordRequest, User
 from ...api.deps import get_current_admin_user
 from ...models.shop import Shop as ShopModel
@@ -20,12 +23,9 @@ class ShopStatusUpdate(BaseModel):
     is_active: bool | None = None
 
 
-_shop_plan_cache: dict[str, str] = {}
-
-
 def _serialize_shop(shop: ShopModel):
-    plan = _shop_plan_cache.get(str(shop.id), "trial")
-    status_value = "active"
+    plan = (shop.subscription_plan or "trial").strip().lower()
+    status_value = (shop.subscription_status or "active").strip().lower()
     owner_email = "unknown@shop.local"
 
     if getattr(shop, "owner", None):
@@ -82,6 +82,17 @@ def admin_reset_vendor_password(
         )
     
     vendor = crud_user.reset_password(db, user=vendor, new_password=reset_request.new_password)
+    AuditService.log(
+        db,
+        user_id=current_admin.id,
+        payload=AuditLogCreate(
+            action=AuditAction.update,
+            entity_type="user",
+            entity_id=str(vendor.id),
+            metadata={"operation": "admin_reset_vendor_password", "target_email": vendor.email},
+        ),
+    )
+    db.commit()
     
     return {
         "message": f"Password reset successfully for vendor {vendor.email}",
@@ -162,7 +173,22 @@ def update_shop_subscription(
     if selected_plan not in {"trial", "basic", "pro", "enterprise"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid plan")
 
-    _shop_plan_cache[str(shop.id)] = selected_plan
+    shop.subscription_plan = selected_plan
+    db.add(shop)
+    db.commit()
+    db.refresh(shop)
+    AuditService.log(
+        db,
+        user_id=current_admin.id,
+        payload=AuditLogCreate(
+            action=AuditAction.update,
+            entity_type="shop_subscription",
+            entity_id=str(shop.id),
+            metadata={"subscription_plan": selected_plan},
+        ),
+    )
+    db.commit()
+
     response = _serialize_shop(shop)
     response["subscription_plan"] = selected_plan
     return response
@@ -181,16 +207,32 @@ def update_shop_status(
 
     if payload.is_active is not None:
         desired_active = payload.is_active
+        desired_status = "active" if desired_active else "paused"
     else:
         desired_status = (payload.status or "active").strip().lower()
         if desired_status not in {"active", "paused", "cancelled"}:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
         desired_active = desired_status == "active"
 
+    shop.subscription_status = desired_status
+    db.add(shop)
+
     if getattr(shop, "owner", None):
         shop.owner.is_active = desired_active
         db.add(shop.owner)
-        db.commit()
-        db.refresh(shop)
+
+    db.commit()
+    db.refresh(shop)
+    AuditService.log(
+        db,
+        user_id=current_admin.id,
+        payload=AuditLogCreate(
+            action=AuditAction.update,
+            entity_type="shop_status",
+            entity_id=str(shop.id),
+            metadata={"status": desired_status, "owner_active": desired_active},
+        ),
+    )
+    db.commit()
 
     return _serialize_shop(shop)

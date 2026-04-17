@@ -2,6 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from ...core.database import get_db
+from ...core.transaction import write_transaction
 from ...crud.user import user as crud_user
 from ...crud.shop import shop as crud_shop
 from ...schemas.user import User, UserUpdate, UserProfile, UserShop, SetCurrentShopRequest
@@ -31,7 +32,8 @@ def update_user_me(
     """
     Update own user
     """
-    user = crud_user.update(db, db_obj=current_user, obj_in=user_in)
+    with write_transaction(db):
+        user = crud_user.update(db, db_obj=current_user, obj_in=user_in)
     return user
 
 

@@ -17,6 +17,5 @@ class AuditService:
             metadata_json=payload.metadata,
         )
         db.add(log)
-        db.commit()
-        db.refresh(log)
+        db.flush()
         return log

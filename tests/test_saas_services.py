@@ -130,6 +130,28 @@ def test_invoice_payment_status_transitions(db_session, seed_shop_context):
     assert str(updated.status) == "InvoiceStatus.paid"
 
 
+def test_invoice_overpayment_is_rejected(db_session, seed_shop_context):
+    shop = seed_shop_context["shop"]
+    customer = seed_shop_context["customer"]
+    product = seed_shop_context["product"]
+
+    invoice = BillingService.create_invoice(
+        db_session,
+        shop.id,
+        InvoiceCreate(
+            customer_id=customer.id,
+            items=[InvoiceItemCreate(product_id=product.id, quantity=1, price=Decimal("100.00"))],
+        ),
+    )
+
+    with pytest.raises(ValueError, match="exceeds remaining invoice balance"):
+        BillingService.add_payment(
+            db_session,
+            invoice,
+            InvoicePaymentCreate(amount=Decimal("150.00"), method="cash", paid_at=datetime.now(timezone.utc)),
+        )
+
+
 def test_stock_movement_updates_stock(db_session, seed_shop_context):
     user = seed_shop_context["user"]
     shop = seed_shop_context["shop"]

@@ -13,13 +13,13 @@ class NotificationService:
             message=payload.message,
         )
         db.add(notification)
-        db.commit()
+        db.flush()
         db.refresh(notification)
         return notification
 
     @staticmethod
     def mark_read(db: Session, notification: Notification) -> Notification:
         notification.is_read = True
-        db.commit()
+        db.flush()
         db.refresh(notification)
         return notification

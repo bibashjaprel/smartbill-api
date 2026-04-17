@@ -11,7 +11,12 @@ from ...schemas.inventory import InventoryAlertCreate, StockMovementCreateV2
 class InventoryService:
     @staticmethod
     def create_stock_movement(db: Session, shop_id: UUID, actor_user_id: UUID, payload: StockMovementCreateV2) -> StockMovement:
-        product = db.query(Product).filter(Product.id == payload.product_id, Product.shop_id == shop_id).first()
+        product = (
+            db.query(Product)
+            .filter(Product.id == payload.product_id, Product.shop_id == shop_id)
+            .with_for_update()
+            .first()
+        )
         if not product:
             raise ValueError("Product not found for shop")
 
@@ -35,7 +40,7 @@ class InventoryService:
             unit_cost=product.cost_price,
         )
         db.add(movement)
-        db.commit()
+        db.flush()
         db.refresh(movement)
         return movement
 
@@ -52,6 +57,6 @@ class InventoryService:
         else:
             alert.threshold_quantity = payload.threshold_quantity
 
-        db.commit()
+        db.flush()
         db.refresh(alert)
         return alert

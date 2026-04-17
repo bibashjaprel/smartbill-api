@@ -11,6 +11,7 @@ from .subscription import Plan, Subscription, Payment
 from .inventory_alert import InventoryAlert
 from .notification import Notification
 from .audit_log import AuditLog
+from .idempotency_key import IdempotencyKey
 
 __all__ = [
     "User",
@@ -29,4 +30,5 @@ __all__ = [
     "InventoryAlert",
     "Notification",
     "AuditLog",
+    "IdempotencyKey",
 ]

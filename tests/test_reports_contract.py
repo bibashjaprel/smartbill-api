@@ -8,7 +8,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api.v1 import reports
 from app.core.database import Base
-from app.models.bill import Bill, BillItem
+from app.models.customer import Customer
+from app.models.invoice import Invoice, InvoiceItem
 from app.models.product import Product
 from app.models.shop import Shop
 from app.models.user import User
@@ -52,6 +53,11 @@ def _seed_shops_and_bills(session):
     session.add_all([shop_1, shop_2, shop_3])
     session.flush()
 
+    customer_1 = Customer(id=uuid.uuid4(), name="Customer One", shop_id=shop_1.id)
+    customer_2 = Customer(id=uuid.uuid4(), name="Customer Two", shop_id=shop_2.id)
+    session.add_all([customer_1, customer_2])
+    session.flush()
+
     product_1 = Product(
         id=uuid.uuid4(),
         name="Jira Rice",
@@ -71,36 +77,36 @@ def _seed_shops_and_bills(session):
     session.add_all([product_1, product_2])
     session.flush()
 
-    bill_1 = Bill(
+    bill_1 = Invoice(
         id=uuid.uuid4(),
-        bill_number="BILL-1",
         shop_id=shop_1.id,
+        customer_id=customer_1.id,
         total_amount=200,
+        paid_amount=0,
     )
-    bill_2 = Bill(
+    bill_2 = Invoice(
         id=uuid.uuid4(),
-        bill_number="BILL-2",
         shop_id=shop_2.id,
+        customer_id=customer_2.id,
         total_amount=999,
+        paid_amount=0,
     )
     session.add_all([bill_1, bill_2])
     session.flush()
 
-    item_1 = BillItem(
+    item_1 = InvoiceItem(
         id=uuid.uuid4(),
-        bill_id=bill_1.id,
+        invoice_id=bill_1.id,
         product_id=product_1.id,
         quantity=2,
-        unit_price=100,
-        total_price=200,
+        price=100,
     )
-    item_2 = BillItem(
+    item_2 = InvoiceItem(
         id=uuid.uuid4(),
-        bill_id=bill_2.id,
+        invoice_id=bill_2.id,
         product_id=product_2.id,
         quantity=1,
-        unit_price=999,
-        total_price=999,
+        price=999,
     )
     session.add_all([item_1, item_2])
     session.commit()

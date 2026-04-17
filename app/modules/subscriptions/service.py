@@ -25,7 +25,7 @@ class SubscriptionService:
             current_period_end=payload.current_period_end,
         )
         db.add(subscription)
-        db.commit()
+        db.flush()
         db.refresh(subscription)
         return subscription
 
@@ -40,7 +40,7 @@ class SubscriptionService:
             paid_at=payload.paid_at,
         )
         db.add(payment)
-        db.commit()
+        db.flush()
         db.refresh(payment)
         return payment
 

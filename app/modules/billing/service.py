@@ -43,25 +43,41 @@ class BillingService:
 
         invoice.total_amount = total_amount
         BillingService._sync_invoice_status(db, invoice)
-        db.commit()
+        db.flush()
         db.refresh(invoice)
         return invoice
 
     @staticmethod
     def add_payment(db: Session, invoice: Invoice, payload: InvoicePaymentCreate) -> Invoice:
+        locked_invoice = (
+            db.query(Invoice)
+            .filter(Invoice.id == invoice.id)
+            .with_for_update()
+            .one()
+        )
+
+        current_paid_total = (
+            db.query(func.coalesce(func.sum(InvoicePayment.amount), 0))
+            .filter(InvoicePayment.invoice_id == locked_invoice.id)
+            .scalar()
+        )
+        next_paid_total = Decimal(current_paid_total) + Decimal(payload.amount)
+        if next_paid_total > Decimal(locked_invoice.total_amount):
+            raise ValueError("Payment exceeds remaining invoice balance")
+
         db.add(
             InvoicePayment(
-                invoice_id=invoice.id,
+                invoice_id=locked_invoice.id,
                 amount=payload.amount,
                 method=payload.method,
                 paid_at=payload.paid_at,
             )
         )
         db.flush()
-        BillingService._sync_invoice_status(db, invoice)
-        db.commit()
-        db.refresh(invoice)
-        return invoice
+        BillingService._sync_invoice_status(db, locked_invoice)
+        db.flush()
+        db.refresh(locked_invoice)
+        return locked_invoice
 
     @staticmethod
     def _sync_invoice_status(db: Session, invoice: Invoice) -> None:

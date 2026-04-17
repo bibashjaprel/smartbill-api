@@ -19,14 +19,20 @@ class Settings:
         self.PROJECT_NAME: str = os.getenv("PROJECT_NAME", "BillSmart API")
         self.VERSION: str = os.getenv("VERSION", "1.0.0")
         self.API_V1_STR: str = os.getenv("API_V1_STR", "/api/v1")
+        self.DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"1", "true", "yes", "on"}
 
         cors_origins_raw = os.getenv(
             "BACKEND_CORS_ORIGINS",
-            "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173,https://billsmart.app,*",
+            "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173,https://billsmart.app",
         )
         self.BACKEND_CORS_ORIGINS: List[str] = [
             origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()
         ]
+        self.CORS_ALLOW_CREDENTIALS: bool = os.getenv("CORS_ALLOW_CREDENTIALS", "true").lower() in {"1", "true", "yes", "on"}
+        self.ENABLE_SECURITY_HEADERS: bool = os.getenv("ENABLE_SECURITY_HEADERS", "true").lower() in {"1", "true", "yes", "on"}
+
+        if self.CORS_ALLOW_CREDENTIALS and "*" in self.BACKEND_CORS_ORIGINS:
+            raise ValueError("Invalid CORS configuration: wildcard origin cannot be used when credentials are enabled")
 
         self.POSTGRES_USER: str = _require_env("POSTGRES_USER")
         self.POSTGRES_PASSWORD: str = _require_env("POSTGRES_PASSWORD")
@@ -62,7 +68,6 @@ class Settings:
         self.PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = int(
             os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_HOURS", "2")
         )
-        self.DEBUG: bool = os.getenv("DEBUG", "false").lower() in {"1", "true", "yes", "on"}
         self.AUTO_INIT_DB: bool = os.getenv("AUTO_INIT_DB", "false").lower() in {"1", "true", "yes", "on"}
         self.MAX_SHOPS_PER_OWNER: int = int(os.getenv("MAX_SHOPS_PER_OWNER", "3"))
 

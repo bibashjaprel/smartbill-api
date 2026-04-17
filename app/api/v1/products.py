@@ -1,6 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from ...core.transaction import write_transaction
 from ...core.database import get_db
 from ...crud.product import product as crud_product
 from ...crud.stock_movement import stock_movement as crud_stock_movement
@@ -72,7 +73,8 @@ def create_product_current_shop(
         product_in.shop_id = shop.id
         
         # Create the product
-        product = crud_product.create(db, obj_in=product_in)
+        with write_transaction(db):
+            product = crud_product.create(db, obj_in=product_in)
         
         # Convert for frontend
         return convert_product_for_frontend(product)
@@ -129,7 +131,8 @@ def update_product_current_shop(
         product = get_product_or_404(db, shop, product_id)
         
         # Update the product
-        updated_product = crud_product.update(db, db_obj=product, obj_in=product_in)
+        with write_transaction(db):
+            updated_product = crud_product.update(db, db_obj=product, obj_in=product_in)
         
         return convert_product_for_frontend(updated_product)
         
@@ -158,7 +161,8 @@ def delete_product_current_shop(
         product = get_product_or_404(db, shop, product_id)
         
         # Delete the product
-        crud_product.remove(db, id=product_id)
+        with write_transaction(db):
+            crud_product.remove(db, id=product_id)
         
         return {"message": "Product deleted successfully"}
         
@@ -193,7 +197,8 @@ def update_product_stock_current_shop(
 
         # Update stock
         product_update = ProductUpdate(stock_quantity=new_stock)
-        updated_product = crud_product.update(db, db_obj=product, obj_in=product_update)
+        with write_transaction(db):
+            updated_product = crud_product.update(db, db_obj=product, obj_in=product_update)
 
         if quantity_change != 0:
             movement_payload = StockMovementCreate(
@@ -213,6 +218,8 @@ def update_product_stock_current_shop(
                 quantity_after=new_stock,
                 obj_in=movement_payload,
             )
+        else:
+            db.commit()
         
         return convert_product_for_frontend(updated_product)
         

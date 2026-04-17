@@ -1,7 +1,17 @@
 """
 Test product-related endpoints (create, list, update, delete)
 """
-from test_config import APIClient, TEST_USER, TEST_PRODUCT, print_response
+import os
+
+import pytest
+
+from tests.test_config import APIClient, TEST_USER, TEST_PRODUCT, print_response
+
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_API_TESTS", "false").lower() not in {"1", "true", "yes", "on"},
+    reason="Live API tests are disabled. Set RUN_LIVE_API_TESTS=true to run.",
+)
 
 def test_products_flow():
     """Test the complete product management flow"""

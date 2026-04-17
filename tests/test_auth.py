@@ -1,7 +1,17 @@
 """
 Test authentication endpoints (signup, login, etc.)
 """
-from test_config import APIClient, TEST_USER, LOGIN_FORM_DATA, print_response
+import os
+
+import pytest
+
+from tests.test_config import APIClient, TEST_USER, LOGIN_FORM_DATA, print_response
+
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_LIVE_API_TESTS", "false").lower() not in {"1", "true", "yes", "on"},
+    reason="Live API tests are disabled. Set RUN_LIVE_API_TESTS=true to run.",
+)
 
 def test_auth_flow():
     """Test the complete authentication flow"""
