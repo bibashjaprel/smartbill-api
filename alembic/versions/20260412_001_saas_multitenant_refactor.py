@@ -43,6 +43,85 @@ def upgrade() -> None:
     audit_action_enum.create(bind, checkfirst=True)
 
     op.create_table(
+        "users",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("email", sa.String(length=255), nullable=False, unique=True),
+        sa.Column("password", sa.String(), nullable=True),
+        sa.Column("full_name", sa.String(length=255), nullable=True),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column("is_verified", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("role", sa.String(length=50), nullable=False, server_default=sa.text("'employee'")),
+        sa.Column("google_id", sa.String(length=255), nullable=True, unique=True),
+        sa.Column("profile_picture", sa.String(length=500), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    )
+
+    op.create_table(
+        "shops",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("address", sa.Text(), nullable=True),
+        sa.Column("phone", sa.String(length=20), nullable=True),
+        sa.Column("email", sa.String(length=255), nullable=True),
+        sa.Column("subscription_plan", sa.String(length=50), nullable=False, server_default=sa.text("'trial'")),
+        sa.Column("subscription_status", sa.String(length=30), nullable=False, server_default=sa.text("'active'")),
+        sa.Column("billing_cycle", sa.String(length=20), nullable=False, server_default=sa.text("'monthly'")),
+        sa.Column("manual_billing_amount", sa.Numeric(10, 2), nullable=False, server_default=sa.text("0")),
+        sa.Column("next_billing_date", sa.DateTime(), nullable=True),
+        sa.Column("subscription_started_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("subscription_ends_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("auto_renew", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column("owner_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    )
+
+    op.create_table(
+        "customers",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("phone", sa.String(length=20), nullable=True),
+        sa.Column("email", sa.String(length=255), nullable=True),
+        sa.Column("address", sa.Text(), nullable=True),
+        sa.Column("udharo_balance", sa.Numeric(10, 2), nullable=False, server_default=sa.text("0")),
+        sa.Column("shop_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("shops.id"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    )
+
+    op.create_table(
+        "products",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("price", sa.Numeric(10, 2), nullable=False),
+        sa.Column("stock_quantity", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("unit", sa.String(length=50), nullable=False, server_default=sa.text("'piece'")),
+        sa.Column("category", sa.String(length=100), nullable=True),
+        sa.Column("shop_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("shops.id"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("cost_price", sa.Numeric(10, 2), nullable=True),
+        sa.Column("min_stock_level", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("sku", sa.String(length=100), nullable=True),
+        sa.UniqueConstraint("shop_id", "sku", name="uq_products_shop_sku"),
+    )
+
+    op.create_table(
+        "user_shop_roles",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("shop_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("shops.id"), nullable=False),
+        sa.Column("role", shop_role_enum, nullable=False, server_default=sa.text("'staff'")),
+        sa.Column("permissions", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column("joined_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.UniqueConstraint("user_id", "shop_id", name="uq_user_shop_roles_user_shop"),
+    )
+
+    op.create_table(
         "plans",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.String(length=120), nullable=False, unique=True),
