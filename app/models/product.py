@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Numeric, Integer
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Numeric, Integer, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
@@ -8,6 +8,9 @@ from ..core.database import Base, GUID
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (
+        UniqueConstraint("shop_id", "sku", name="uq_products_shop_sku"),
+    )
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
@@ -21,7 +24,7 @@ class Product(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     cost_price = Column(Numeric(10, 2), nullable=True)
     min_stock_level = Column(Integer, default=0)
-    sku = Column(String(100), unique=True, nullable=True)
+    sku = Column(String(100), nullable=True, index=True)
 
     # Relationships
     shop = relationship("Shop", back_populates="products")
