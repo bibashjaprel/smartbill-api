@@ -26,46 +26,6 @@ def read_auth_me(
     return current_user
 
 
-@router.post("/login")
-def login(
-    db: Session = Depends(get_db),
-    form_data: OAuth2PasswordRequestForm = Depends()
-):
-    """
-    Login for access token - now uses email in the username field
-    """
-    # OAuth2 form uses username field, but we treat it as email
-    email = form_data.username
-    password = form_data.password
-    
-    user = crud_user.authenticate(db, email=email, password=password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
-        )
-    elif not crud_user.is_active(user):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
-        )
-    # elif not crud_user.is_verified(user):
-    #     raise HTTPException(
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #         detail="Email not verified. Please check your email for verification link."
-    #     )
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(user.id)}, expires_delta=access_token_expires
-    )
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": User.from_orm(user)
-    }
-
 
 @router.post("/login-email")
 def login_email(
