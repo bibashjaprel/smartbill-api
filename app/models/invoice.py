@@ -13,7 +13,7 @@ class Invoice(Base):
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     shop_id = Column(GUID, ForeignKey("shops.id"), nullable=False, index=True)
-    customer_id = Column(GUID, ForeignKey("customers.id"), nullable=False, index=True)
+    customer_id = Column(GUID, ForeignKey("customers.id"), nullable=True, index=True)
     total_amount = Column(Numeric(12, 2), nullable=False)
     paid_amount = Column(Numeric(12, 2), nullable=False, default=0)
     status = Column(Enum(InvoiceStatus, name="invoice_status_enum"), nullable=False, default=InvoiceStatus.unpaid)

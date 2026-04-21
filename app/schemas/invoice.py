@@ -23,7 +23,7 @@ class InvoiceItemRead(InvoiceItemCreate):
 
 
 class InvoiceCreate(BaseModel):
-    customer_id: uuid.UUID
+    customer_id: Optional[uuid.UUID] = None
     due_date: Optional[datetime] = None
     items: List[InvoiceItemCreate]
 
@@ -31,7 +31,7 @@ class InvoiceCreate(BaseModel):
 class InvoiceRead(BaseModel):
     id: uuid.UUID
     shop_id: uuid.UUID
-    customer_id: uuid.UUID
+    customer_id: Optional[uuid.UUID] = None
     total_amount: Decimal
     paid_amount: Decimal
     status: InvoiceStatus

@@ -152,6 +152,23 @@ def test_invoice_overpayment_is_rejected(db_session, seed_shop_context):
         )
 
 
+def test_invoice_can_be_created_without_customer_for_walkin(db_session, seed_shop_context):
+    shop = seed_shop_context["shop"]
+    product = seed_shop_context["product"]
+
+    invoice = BillingService.create_invoice(
+        db_session,
+        shop.id,
+        InvoiceCreate(
+            customer_id=None,
+            items=[InvoiceItemCreate(product_id=product.id, quantity=1, price=Decimal("100.00"))],
+        ),
+    )
+
+    assert invoice.customer_id is None
+    assert invoice.total_amount == Decimal("100.00")
+
+
 def test_stock_movement_updates_stock(db_session, seed_shop_context):
     user = seed_shop_context["user"]
     shop = seed_shop_context["shop"]
