@@ -7,6 +7,7 @@ from ...core.transaction import write_transaction
 from ...crud.shop import shop as crud_shop
 from ...crud.user import user as crud_user
 from ...crud.user_shop_role import user_shop_role as crud_user_shop_role
+from ...modules.subscriptions.service import SubscriptionService
 from ...schemas.shop import Shop, ShopCreate, ShopUpdate, ShopWithDetails
 from ...schemas.user import UserRole, UserShop
 from ...schemas.user_shop_role import UserShopRoleCreate, UserShopRoleUpdate, UserShopRoleInDB
@@ -161,9 +162,19 @@ def create_shop(
                 detail=f"Shop creation limit reached. Maximum {settings.MAX_SHOPS_PER_OWNER} shops allowed per owner."
             )
         
-        shop = crud_shop.create_with_owner(
-            db, obj_in=shop_in, owner_id=owner_id
+        trial_shop_in = shop_in.model_copy(
+            update={
+                "subscription_plan": "trial",
+                "subscription_status": "trial",
+                "billing_cycle": "monthly",
+            }
         )
+
+        with write_transaction(db):
+            shop = crud_shop.create_with_owner(
+                db, obj_in=trial_shop_in, owner_id=owner_id
+            )
+            SubscriptionService.create_trial_subscription_for_shop(db, shop.id)
         
         return shop
     except HTTPException:

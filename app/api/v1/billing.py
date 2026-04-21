@@ -46,7 +46,7 @@ def create_invoice(
     request: Request,
     db: Session = Depends(get_db),
     shop: Shop = Depends(get_current_shop),
-    _sub=Depends(check_shop_subscription("max_products")),
+    _sub=Depends(check_shop_subscription("max_bills")),
     _role=Depends(require_shop_roles(SHOP_ROLE_OWNER_ADMIN_STAFF)),
 ):
     try:

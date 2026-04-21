@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional, Tuple
 from uuid import UUID
 
@@ -6,12 +7,74 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ...models.product import Product
+from ...models.enums import BillingCycle, SubscriptionStatus
+from ...models.invoice import Invoice
 from ...models.subscription import Payment, Plan, Subscription
 from ...models.user_shop_role import UserShopRole
 from ...schemas.subscription import SubscriptionCreate, SubscriptionPaymentCreate
 
 
 class SubscriptionService:
+    TRIAL_PLAN_NAME = "trial"
+    TRIAL_DAYS = 14
+    DEFAULT_TRIAL_FEATURES = {
+        "max_bills": 1000,
+        "max_products": 200,
+        "max_users": 50,
+    }
+
+    @staticmethod
+    def get_or_create_trial_plan(db: Session) -> Plan:
+        plan = db.query(Plan).filter(Plan.name == SubscriptionService.TRIAL_PLAN_NAME).first()
+        if plan:
+            return plan
+
+        plan = Plan(
+            name=SubscriptionService.TRIAL_PLAN_NAME,
+            price=Decimal("0.00"),
+            billing_cycle=BillingCycle.monthly,
+            features=SubscriptionService.DEFAULT_TRIAL_FEATURES,
+            is_active=True,
+        )
+        db.add(plan)
+        db.flush()
+        db.refresh(plan)
+        return plan
+
+    @staticmethod
+    def create_trial_subscription_for_shop(db: Session, shop_id: UUID) -> Subscription:
+        now = datetime.now(timezone.utc)
+        existing = (
+            db.query(Subscription)
+            .filter(
+                Subscription.shop_id == shop_id,
+                Subscription.status.in_([SubscriptionStatus.trial, SubscriptionStatus.active]),
+                Subscription.current_period_end >= now,
+            )
+            .order_by(Subscription.created_at.desc())
+            .first()
+        )
+        if existing:
+            return existing
+
+        trial_plan = SubscriptionService.get_or_create_trial_plan(db)
+        trial_end = now + timedelta(days=SubscriptionService.TRIAL_DAYS)
+
+        subscription = Subscription(
+            shop_id=shop_id,
+            plan_id=trial_plan.id,
+            status=SubscriptionStatus.trial,
+            start_date=now,
+            end_date=trial_end,
+            trial_end=trial_end,
+            current_period_start=now,
+            current_period_end=trial_end,
+        )
+        db.add(subscription)
+        db.flush()
+        db.refresh(subscription)
+        return subscription
+
     @staticmethod
     def create_subscription(db: Session, shop_id: UUID, payload: SubscriptionCreate) -> Subscription:
         subscription = Subscription(
@@ -85,6 +148,8 @@ class SubscriptionService:
 
     @staticmethod
     def _infer_usage(db: Session, shop_id: UUID, feature_key: str) -> int:
+        if feature_key == "max_bills":
+            return db.query(func.count(Invoice.id)).filter(Invoice.shop_id == shop_id).scalar() or 0
         if feature_key == "max_products":
             return db.query(func.count(Product.id)).filter(Product.shop_id == shop_id).scalar() or 0
         if feature_key == "max_users":

@@ -208,3 +208,30 @@ def test_credit_module_summary_and_payment(db_session, seed_shop_context):
 
     summary_after = CreditService.get_customer_summary(db_session, shop.id, customer.id)
     assert summary_after.total_due == Decimal("100.00")
+
+
+def test_trial_subscription_has_1000_bill_limit(db_session, seed_shop_context):
+    shop = seed_shop_context["shop"]
+
+    SubscriptionService.create_trial_subscription_for_shop(db_session, shop.id)
+
+    allowed_before_limit, limit_value, used_before_limit, _ = SubscriptionService.check_feature_access(
+        db_session,
+        shop.id,
+        "max_bills",
+        used=999,
+    )
+    assert allowed_before_limit is True
+    assert limit_value == 1000
+    assert used_before_limit == 999
+
+    allowed_at_limit, limit_value_at_limit, used_at_limit, reason = SubscriptionService.check_feature_access(
+        db_session,
+        shop.id,
+        "max_bills",
+        used=1000,
+    )
+    assert allowed_at_limit is False
+    assert limit_value_at_limit == 1000
+    assert used_at_limit == 1000
+    assert "Limit reached" in reason

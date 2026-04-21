@@ -18,7 +18,7 @@ class CRUDShop(CRUDBase[Shop, ShopCreate, ShopUpdate]):
         obj_in_data.pop('owner_id', None)
         db_obj = Shop(**obj_in_data, owner_id=owner_id)
         db.add(db_obj)
-        db.commit()
+        db.flush()
         db.refresh(db_obj)
         return db_obj
 
