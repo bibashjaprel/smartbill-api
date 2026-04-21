@@ -161,40 +161,6 @@ async def google_login(
     }
 
 
-@router.post("/register", response_model=dict)
-async def register(
-    *,
-    db: Session = Depends(get_db),
-    user_in: UserCreate,
-    background_tasks: BackgroundTasks
-):
-    """
-    Create new user and send verification email (legacy endpoint)
-    """
-    user = crud_user.get_by_email(db, email=user_in.email)
-    if user:
-        raise HTTPException(
-            status_code=400,
-            detail="The user with this email already exists in the system."
-        )
-    
-    user = crud_user.create(db, obj_in=user_in)
-    
-    # Generate verification token and send email
-    verification_token = create_email_verification_token(user.email)
-    background_tasks.add_task(
-        send_verification_email,
-        email=user.email,
-        token=verification_token,
-        user_name=user.full_name
-    )
-    
-    return {
-        "message": "User created successfully. Please check your email to verify your account.",
-        "email": user.email
-    }
-
-
 @router.post("/signup", response_model=dict)
 async def signup(
     *,
