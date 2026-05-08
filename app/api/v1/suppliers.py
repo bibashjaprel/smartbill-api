@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -19,7 +19,7 @@ from ...utils.api_response import paginated_response, success_response
 router = APIRouter()
 
 
-@router.get("/shops/{shop_id}/suppliers", response_model=List[SupplierRead])
+@router.get("/shops/{shop_id}/suppliers", response_model=dict[str, Any])
 def list_shop_suppliers(
     request: Request,
     shop: Shop = Depends(get_current_shop),
@@ -99,7 +99,7 @@ def delete_shop_supplier(
     )
 
 
-@router.get("/suppliers", response_model=List[SupplierRead])
+@router.get("/suppliers", response_model=dict[str, Any])
 def list_suppliers_fallback(
     request: Request,
     shop_id: Optional[UUID] = Query(None),
@@ -139,7 +139,7 @@ def list_suppliers_fallback(
     )
 
 
-@router.get("/suppliers/", response_model=List[SupplierRead])
+@router.get("/suppliers/", response_model=dict[str, Any])
 def list_suppliers_fallback_slash(
     request: Request,
     shop_id: Optional[UUID] = Query(None),

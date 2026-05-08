@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -18,7 +18,7 @@ from ...utils.api_response import paginated_response, success_response
 router = APIRouter()
 
 
-@router.get("/shops/{shop_id}/customers", response_model=List[Customer])
+@router.get("/shops/{shop_id}/customers", response_model=dict[str, Any])
 def list_customers(
     request: Request,
     skip: int = Query(0, ge=0),
