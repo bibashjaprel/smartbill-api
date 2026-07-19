@@ -194,7 +194,7 @@ print('Admin user created: admin@billsmart.com / admin123')
 ### API Endpoints
 
 #### Authentication
-- `POST /api/v1/auth/register` - Register new user
+- `POST /api/v1/auth/signup` - Register new user
 - `POST /api/v1/auth/login` - Login (OAuth2 compatible)
 - `POST /api/v1/auth/google/login` - Google OAuth login
 - `POST /api/v1/auth/verify-email` - Verify email address
@@ -243,8 +243,9 @@ print('Admin user created: admin@billsmart.com / admin123')
 - `POST /api/v1/shops/{shop_id}/subscriptions/{subscription_id}/payments` - Add subscription payment
 
 #### Analytics & Reports
-- `GET /api/v1/dashboard/stats` - Dashboard statistics
-- `GET /api/v1/dashboard/details` - Detailed dashboard data
+- `GET /api/v1/dashboard/stats?shop_id={shop_id}` - Dashboard statistics for the selected authorized shop
+- `GET /api/v1/dashboard/details?shop_id={shop_id}` - Detailed dashboard data for the selected authorized shop
+- `GET /api/v1/dashboard/udharo?shop_id={shop_id}` - Udharo summary for the selected authorized shop
 - `GET /api/v1/reports/monthly-trends` - Monthly sales trends
 - `GET /api/v1/reports/monthly-stats` - Monthly statistics
 - `GET /api/v1/reports/top-products` - Top performing products
@@ -262,7 +263,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 uvicorn app.main:app --reload --log-level debug
 
 # Test API endpoints
-curl -X POST "http://localhost:8000/api/v1/auth/register" \
+curl -X POST "http://localhost:8000/api/v1/auth/signup" \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"testpass123","full_name":"Test User"}'
 ```

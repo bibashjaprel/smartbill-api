@@ -130,6 +130,28 @@ def test_invoice_payment_status_transitions(db_session, seed_shop_context):
     assert str(updated.status) == "InvoiceStatus.paid"
 
 
+def test_invoice_initial_payment_is_recorded_with_the_invoice(db_session, seed_shop_context):
+    shop = seed_shop_context["shop"]
+    product = seed_shop_context["product"]
+
+    invoice = BillingService.create_invoice(
+        db_session,
+        shop.id,
+        InvoiceCreate(
+            items=[InvoiceItemCreate(product_id=product.id, quantity=1, price=Decimal("100.00"))],
+            initial_payment=InvoicePaymentCreate(
+                amount=Decimal("100.00"),
+                method="online",
+                paid_at=datetime.now(timezone.utc),
+            ),
+        ),
+    )
+
+    assert invoice.paid_amount == Decimal("100.00")
+    assert str(invoice.status) == "InvoiceStatus.paid"
+    assert invoice.payments[0].method == "online"
+
+
 def test_invoice_overpayment_is_rejected(db_session, seed_shop_context):
     shop = seed_shop_context["shop"]
     customer = seed_shop_context["customer"]

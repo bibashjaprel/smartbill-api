@@ -5,33 +5,27 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
-from ...api.deps import get_current_active_user
+from ...api.deps import get_current_shop
 from ...core.database import get_db
-from ...crud.shop import shop as crud_shop
 from ...models.customer import Customer
 from ...models.invoice import Invoice
 from ...models.product import Product
-from ...models.user import User
+from ...models.shop import Shop
 
 router = APIRouter()
 
 
 @router.get("/stats")
 def get_dashboard_stats(
+    shop: Shop = Depends(get_current_shop),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
-    """Get dashboard statistics for the current user's first shop."""
+    """Get dashboard statistics for the authorized selected shop.
+
+    The selected shop is supplied as the required ``shop_id`` query parameter
+    and is authorized by ``get_current_shop`` for both owners and members.
+    """
     try:
-        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-        if not shops:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No shops found for the current user",
-            )
-
-        shop = shops[0]
-
         total_products = db.query(func.count(Product.id)).filter(Product.shop_id == shop.id).scalar() or 0
         total_customers = db.query(func.count(Customer.id)).filter(Customer.shop_id == shop.id).scalar() or 0
         total_bills = db.query(func.count(Invoice.id)).filter(Invoice.shop_id == shop.id).scalar() or 0
@@ -66,30 +60,22 @@ def get_dashboard_stats(
             "pending_payments": float(pending_payments),
             "low_stock_products": int(low_stock_products),
         }
+    except HTTPException:
+        raise
     except Exception as exc:
-        print(f"Dashboard stats error: {str(exc)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching dashboard stats: {str(exc)}",
+            detail="Error fetching dashboard stats",
         )
 
 
 @router.get("/details")
 def get_dashboard_details(
+    shop: Shop = Depends(get_current_shop),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
-    """Get detailed dashboard data including recent bills, low stock products, and top customers."""
+    """Get detailed dashboard data for the authorized selected shop."""
     try:
-        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-        if not shops:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No shops found for the current user",
-            )
-
-        shop = shops[0]
-
         recent_invoices = (
             db.query(Invoice)
             .filter(Invoice.shop_id == shop.id)
@@ -157,30 +143,22 @@ def get_dashboard_details(
                 for row in top_customer_rows if row
             ],
         }
+    except HTTPException:
+        raise
     except Exception as exc:
-        print(f"Dashboard details error: {str(exc)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching dashboard details: {str(exc)}",
+            detail="Error fetching dashboard details",
         )
 
 
 @router.get("/udharo")
 def get_udharo_summary(
+    shop: Shop = Depends(get_current_shop),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
-    """Get udharo summary in the format expected by the frontend."""
+    """Get the Udharo summary for the authorized selected shop."""
     try:
-        shops = crud_shop.get_by_owner(db, owner_id=str(current_user.id))
-        if not shops:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No shops found for the current user",
-            )
-
-        shop = shops[0]
-
         customer_rows = (
             db.query(
                 Customer.id.label("customer_id"),
@@ -215,9 +193,10 @@ def get_udharo_summary(
                 for row in customer_rows
             ],
         }
+    except HTTPException:
+        raise
     except Exception as exc:
-        print(f"Error fetching udharo summary: {str(exc)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching udharo summary: {str(exc)}",
+            detail="Error fetching udharo summary",
         )

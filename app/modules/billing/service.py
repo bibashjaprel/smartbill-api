@@ -42,6 +42,18 @@ class BillingService:
             )
 
         invoice.total_amount = total_amount
+        if payload.initial_payment:
+            if Decimal(payload.initial_payment.amount) > total_amount:
+                raise ValueError("Payment exceeds remaining invoice balance")
+            db.add(
+                InvoicePayment(
+                    invoice_id=invoice.id,
+                    amount=payload.initial_payment.amount,
+                    method=payload.initial_payment.method,
+                    paid_at=payload.initial_payment.paid_at,
+                )
+            )
+            db.flush()
         BillingService._sync_invoice_status(db, invoice)
         db.flush()
         db.refresh(invoice)

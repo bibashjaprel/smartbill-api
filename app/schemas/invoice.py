@@ -22,10 +22,28 @@ class InvoiceItemRead(InvoiceItemCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class InvoicePaymentCreate(BaseModel):
+    amount: Decimal = Field(..., gt=0)
+    method: str
+    paid_at: datetime
+
+
+class InvoicePaymentRead(InvoicePaymentCreate):
+    id: uuid.UUID
+    invoice_id: uuid.UUID
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class InvoiceCreate(BaseModel):
     customer_id: Optional[uuid.UUID] = None
     due_date: Optional[datetime] = None
     items: List[InvoiceItemCreate]
+    # Initial payment is created in the same transaction as the invoice so a
+    # successful cash/card/online sale can never be left unpaid by a failed
+    # follow-up request.
+    initial_payment: Optional[InvoicePaymentCreate] = None
 
 
 class InvoiceRead(BaseModel):
@@ -38,19 +56,6 @@ class InvoiceRead(BaseModel):
     due_date: Optional[datetime]
     created_at: datetime
     items: List[InvoiceItemRead] = Field(default_factory=list)
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class InvoicePaymentCreate(BaseModel):
-    amount: Decimal = Field(..., gt=0)
-    method: str
-    paid_at: datetime
-
-
-class InvoicePaymentRead(InvoicePaymentCreate):
-    id: uuid.UUID
-    invoice_id: uuid.UUID
-    created_at: datetime
+    payments: List[InvoicePaymentRead] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
