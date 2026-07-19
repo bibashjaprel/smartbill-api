@@ -34,17 +34,26 @@ class Settings:
         if self.CORS_ALLOW_CREDENTIALS and "*" in self.BACKEND_CORS_ORIGINS:
             raise ValueError("Invalid CORS configuration: wildcard origin cannot be used when credentials are enabled")
 
-        self.POSTGRES_USER: str = _require_env("POSTGRES_USER")
-        self.POSTGRES_PASSWORD: str = _require_env("POSTGRES_PASSWORD")
-        self.POSTGRES_HOST: str = _require_env("POSTGRES_HOST")
-        self.POSTGRES_PORT: int = int(_require_env("POSTGRES_PORT"))
-        self.POSTGRES_DB: str = _require_env("POSTGRES_DB")
-
-        password_escaped = quote_plus(self.POSTGRES_PASSWORD)
-        self.DATABASE_URL: str = (
-            f"postgresql://{self.POSTGRES_USER}:{password_escaped}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        )
+        # A hosted provider such as Neon can supply a complete connection URL.
+        # Prefer it when present; otherwise build the URL from the individual
+        # POSTGRES_* settings used by the Docker deployment.
+        configured_database_url = os.getenv("DATABASE_URL")
+        if configured_database_url:
+            self.DATABASE_URL = configured_database_url
+        else:
+            self.POSTGRES_USER: str = _require_env("POSTGRES_USER")
+            self.POSTGRES_PASSWORD: str = _require_env("POSTGRES_PASSWORD")
+            self.POSTGRES_HOST: str = _require_env("POSTGRES_HOST")
+            self.POSTGRES_PORT: int = int(_require_env("POSTGRES_PORT"))
+            self.POSTGRES_DB: str = _require_env("POSTGRES_DB")
+            self.POSTGRES_SSLMODE: Optional[str] = os.getenv("POSTGRES_SSLMODE")
+            password_escaped = quote_plus(self.POSTGRES_PASSWORD)
+            self.DATABASE_URL = (
+                f"postgresql://{self.POSTGRES_USER}:{password_escaped}"
+                f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            )
+            if self.POSTGRES_SSLMODE:
+                self.DATABASE_URL += f"?sslmode={self.POSTGRES_SSLMODE}"
 
         self.SECRET_KEY: str = _require_env("SECRET_KEY")
         self.ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
@@ -72,6 +81,14 @@ class Settings:
         self.MAX_SHOPS_PER_OWNER: int = int(os.getenv("MAX_SHOPS_PER_OWNER", "3"))
 
     def masked_database_url(self) -> str:
+        if os.getenv("DATABASE_URL"):
+            from urllib.parse import urlsplit, urlunsplit
+
+            parts = urlsplit(self.DATABASE_URL)
+            host = parts.hostname or ""
+            port = f":{parts.port}" if parts.port else ""
+            user = f"{parts.username}:" if parts.username else ""
+            return urlunsplit((parts.scheme, f"{user}***@{host}{port}", parts.path, parts.query, ""))
         return (
             f"postgresql://{self.POSTGRES_USER}:***"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
